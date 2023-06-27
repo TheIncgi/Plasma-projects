@@ -1477,7 +1477,7 @@ function getData()
   dataset:put("features", features)
   dataset:put("labels", labels)
 
-  for _,src in ipairs{"armJson","armJson2"} do
+  for _,src in ipairs{"data/armJson","data/armJson2"} do
     local ARM_JSON = require( src )
     local armData = Json:new(ARM_JSON)
     armData = transformData( armData )
@@ -1492,7 +1492,7 @@ function getData()
 end
 
 function demo2()
-  require"armJson"
+  require"data/armJson"
   armData = getData()
   print("examples: "..armData:get"features":len())
   ARM_JSON = armData:toString()
