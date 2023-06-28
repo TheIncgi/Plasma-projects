@@ -4,6 +4,7 @@ Async = {}
 
 --async
 local tasks = {}
+Async.tasks = tasks
 -----------------
 -- async task rules
 -- return false if not done
@@ -200,6 +201,7 @@ Loader.keywords = {
   ["true"]     = true,
   ["until"]    = true,
   ["while"]    = true,
+  ["end"]      = true,
 }
 
 local SINGLE_QUOTE = string.char(39)
@@ -296,6 +298,7 @@ function Loader._chunkType( text )
 	return false
 end
 
+--todo unused?
 function Loader._splitOp( token )
   local extras = {}
   local value = token.value
@@ -314,68 +317,6 @@ function Loader._splitOp( token )
   table.remove(extras, 1)
   return extras
 end
-
--- function Loader.tokenize( source )
---   local tokens = {}
---   local buffer = ""
---   local tokenType = false
---   local last = #source
---   local start = 1
---   local index = 0
---   local line = 1
-
---   return insertTasks(
---     forEach("tokenizer-main", function(char)
---       index = index + 1
---       buffer = buffer..char
---       local typeCheck = Loader._chunkType(buffer)
---       if (tokenType ~= false and not typeCheck) or (index == last) then
---         if tokenType == "line" then
---           line = line + 1
---         else
---           local token = {
---             type = tokenType,
---             line = line,
---             start = start,
---             stop = index-1,
---             value = buffer:sub(1,-2)
---           }
---           print(index, buffer:sub(1,-2), tokenType)
---           table.insert(tokens, token)
-
---           if tokenType=="op" then
---             local extras = Loader._splitOp(token)
---             for j=1,#extras do table.insert( tokens, extras[j] ) end
---           end
-
---           if tokenType=="num" then 
---             token.value = tonumber(token.value)
-
---             local priorToken = tokens[#tokens-1]
---             local twicePriorToken = tokens[#tokens-2]
---             local plusMinus = priorToken and priorToken.type == "op" and (priorToken.value == "+" or priorToken.value == "-")
---             if plusMinus and twicePriorToken and twicePriorToken.type=="op" then
---               table.remove(tokens, #tokens-1)
---               if priorToken.value == "-" then
---                 token.value = -token.value
---               end
---             end
-
---           end
---         end
-
---         typeCheck = Loader._chunkType(char)
---         buffer = typeCheck and char or ""
---         start = index + (typeCheck and 0 or 1)
---       elseif typeCheck == false then
---         buffer = "" --ignored values
---         start = index + 1
---       end
---       tokenType = typeCheck
---     end, string.gmatch, source, "."), --forEach parts
---     RETURN("tokenizer-result", tokens )
---   )
--- end
 
 function Loader.tokenize( src )
   local start, stop = 1, 0
@@ -493,24 +434,17 @@ function Loader.cleanupTokens( tokens )
           end
         end
       elseif tokenType=="keyword" then
-        -- if token == "function"
-        -- or token == "do"
-        -- or token == "repeat"
-        -- or token == "then" then
-        --   blockLevel = blockLevel + 1
+        if token == "function"
+        or token == "do"
+        or token == "repeat"
+        or token == "then" then
+          blockLevel = blockLevel + 1
           -- table.insert(blockStack, infoToken)
-        if token == "else" or token == "elseif" then
+        elseif token == "else" or token == "elseif" then
           infoToken.blockLevel = blockLevel-1
-          local from = table.remove(blockStack)
-          from.skip = infoToken
-          infoToken.from = from
-          table.insert(blockStack, infoToken)
-        elseif token == "end" then
+        elseif token == "end" or token=="until" then
           blockLevel = blockLevel-1
           infoToken.blockLevel = blockLevel
-          local from = table.remove(blockStack)
-          from.skip = infoToken
-          infoToken.from = from
         end
       end
 
@@ -626,12 +560,12 @@ function Loader._makeEvaluation( tokens, start, stop )
 end
 
 function Loader._collectExpression( tokens, index, allowAssignment, line, ignoreComma )
-  local endTokenPos = Async.sync(Loader._findExpressionEnd(tokens, index+1, allowAssignment, ignoreComma)) --todo possible improvment on async
+  local endTokenPos = Async.sync(Loader._findExpressionEnd(tokens, index, allowAssignment, ignoreComma)) --todo possible improvment on async
   if not endTokenPos then
     error("Missing expression for assignment on line "..line)
   end
   local infix = {}
-  for i=index+1, endTokenPos-1 do
+  for i=index, endTokenPos-1 do
     table.insert(infix, tokens[i])
   end
 
@@ -685,10 +619,15 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
   table.insert(instructions, {op="createScope"})
 
   return insertTasks(
-    Async.whileLoop("Loader.groupInstructions-main", function() return index <= #tokens end, function()
+    Async.whileLoop("Loader.groupInstructions-main["..index.."]", function() return index <= #tokens end, function()
       local token = tokens[index]
       local nextToken = tokens[ index + 1 ]
-
+      local localVar = false
+      if token.type == "keyword" and token.value=="local" then
+        localVar = true
+        index = index + 1
+        token, nextToken = tokens[index],tokens[index+1]
+      end
       if token.type == "assignment-set" then
         if token.token == "in" then
           error("invalid use of keyword 'in' on line "..token.line)
@@ -701,7 +640,8 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
         local instruction = {
           op = "assign",
           vars = token.value,
-          infix = infix
+          infix = infix,
+          isLocal = localVar
         }
 
         table.insert(instructions, instruction)
@@ -714,9 +654,9 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
         or token.value == "repeat"
         or token.value == "then" then
           addScope = true
-        elseif token == "else" or token == "elseif" then
+        elseif token.value == "else" or token.value == "elseif" then
           addScope, removeScope = true, true
-        elseif token == "end" then
+        elseif token.value == "end" then
           removeScope = true
         end
 
@@ -724,22 +664,24 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
           
           if token.value=="function" then
             local name,args,instStart = Loader.readFunctionHeader(tokens, index+1)
-            Async.insertTasks(
-              Loader.buildInstructions(tokens, instStart, token.blockLevel), --returns instructions, nextIndex
-              {
+            
+            Async.insertTasks( 
+              { --this task happens AFTER the .buildInstructions call because the buildInstructions inserts into the front of the queue
                 label = "storeFunctionInstructions",
-                func = function( instructions, nextIndex )
+                func = function( inst, nextIndex )
                   local instruction = {
                     op = "function",
                     name = name,
                     args = args,
-                    instructions = instructions
+                    instructions = inst
                   }
                   table.insert(instructions, instruction)
                   index = nextIndex
+                  return true
                 end
               }
             )
+            Loader.buildInstructions(tokens, instStart, token.blockLevel) --returns instructions, nextIndex
             return --continue into inserted tasks
           else
             table.insert(instructions, {op="createScope", token = token})
@@ -747,7 +689,17 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
         end
 
         --instructions with expresssions
-        if token.value == "if" or token.value == "elseif" then
+        if token.value == "return" then
+          local infix, endTokenPos = Loader._collectExpression(tokens, index+1, false, token.line) --todo async improvment
+          local instruction = {
+            op = "return",
+            infix = infix,
+          }
+          
+          table.insert(instructions, instruction)
+          index = endTokenPos
+          return --continue
+        elseif token.value == "if" or token.value == "elseif" then
           --TODO prevent varargs evaluation
           local infix, endTokenPos = Loader._collectExpression(tokens, index+1, false, token.line) --todo async improvment
           local instruction = {
@@ -841,7 +793,7 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
 
         if removeScope then
           table.insert(instructions, {op="deleteScope", token = token})
-          if token.blockLevel == exitBlockLevel then
+          if token.blockLevel <= exitBlockLevel then
             return {instructions, index + 1}
           end
         end
