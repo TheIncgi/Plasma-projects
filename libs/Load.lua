@@ -183,7 +183,7 @@ local RETURN = Async.RETURN
 Loader = {}
 
 Loader.keywords = {
-  ["and"]      = true,
+  -- ["and"]      = true,
   ["break"]    = true,
   ["do"]       = true,
   ["false"]    = true,
@@ -193,8 +193,8 @@ Loader.keywords = {
   ["in"]       = true,
   ["local"]    = true,
   ["nil"]      = true,
-  ["not"]      = true,
-  ["or"]       = true,
+  -- ["not"]      = true,
+  -- ["or"]       = true,
   ["repeat"]   = true,
   ["return"]   = true,
   ["then"]     = true,
@@ -388,6 +388,7 @@ function Loader.cleanupTokens( tokens )
       local tokenType = Loader._chunkType(token)
       if Loader._ops[token] then tokenType = "op" end
       if Loader.keywords[token] then tokenType = "keyword" end
+      if token=="or" or token=="and" or token=="not" then tokenType = "op" end
       local infoToken = {
         value = token,
         type = tokenType,
@@ -399,7 +400,8 @@ function Loader.cleanupTokens( tokens )
         infoToken.value = tonumber(infoToken.value)
 
         if prior and prior.value == "-"
-        and (twicePrior and twicePrior.type == "op")
+        and (twicePrior and twicePrior.type == "op" and (
+          twicePrior.value ~= ")" and twicePrior.value ~= "}" and twicePrior.value ~= "]" ))
          or twicePrior == nil then
           table.remove(tokens, index-1)
           infoToken.value = -infoToken.value
@@ -425,7 +427,7 @@ function Loader.cleanupTokens( tokens )
           end
           table.remove(tokens, index)
           return --continue
-        elseif token == "(" or token == "{" or token:sub(1,1)=="'" or token:sub(1,1) =='"' then
+        elseif token == "(" or token == "{" then -- " doesn't"
           if prior and (
               (prior.type == "var")
             or (prior.type == "op" and (prior.value == ")" or prior.value == "]"))
@@ -445,6 +447,24 @@ function Loader.cleanupTokens( tokens )
         elseif token == "end" or token=="until" then
           blockLevel = blockLevel-1
           infoToken.blockLevel = blockLevel
+        end
+      elseif tokenType=="str" then
+        if prior and prior.type == "var" then
+          tokens[index] = infoToken
+          table.insert( tokens, index, {
+            type = "op",
+            value = "(",
+            line = line,
+            call = true
+          })
+          -- index (, +1 "", +2 )
+          table.insert( tokens, index+2, {
+            type = "op",
+            value = ")",
+            line = line
+          })
+          index = index + 3 --skip to after )
+          return --continue
         end
       end
 
@@ -475,11 +495,12 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma 
     end
   end
   return Async.insertTasks(
-    Async.whileLoop("_findExpressionEnd", function () return index < #tokens end, function()
+    Async.whileLoop("_findExpressionEnd", function () return true end, function()
       local token = tokens[index]
       
       if not token then
         if start == index then return {false} end
+        if requiresValue then error("Incomplete expression at end of file") end
         return {index}
       end
 
@@ -515,10 +536,11 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma 
           error("Unexpected token "..token.value.." in expression on line "..token.line)
         else
           if token.value == "," then
-            if ignoreComma then
+            if ignoreComma and #brackets == 0 then
               return {index, argGroups}
+            elseif #brackets == 0 then
+              argGroups = argGroups + 1
             end
-            argGroups = argGroups + 1
           end
           requiresValue = true
         end
@@ -640,75 +662,99 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
         local instruction = {
           op = "assign",
           vars = token.value,
-          infix = infix,
-          isLocal = localVar
+          infix = { eval = infix },
+          isLocal = localVar,
+          index = #instructions+1
         }
 
         table.insert(instructions, instruction)
         index = endTokenPos
         return --continue
       elseif token.type == "keyword" then
-        local addScope, removeScope = false, false
-        if token.value == "function"
-        or token.value == "do"
-        or token.value == "repeat"
-        or token.value == "then" then
-          addScope = true
-        elseif token.value == "else" or token.value == "elseif" then
-          addScope, removeScope = true, true
-        elseif token.value == "end" then
-          removeScope = true
-        end
+        -- local removeScope = false
+        -- if token.value == "function"
+        -- or token.value == "do"
+        -- or token.value == "repeat" then
+        --   addScope = true
+        -- elseif token.value == "else" or token.value == "elseif" then
+        --   addScope, removeScope = true, true
+        -- elseif token.value == "end" or token.value == "until" then
+        --   removeScope = true
+        -- end
 
-        if addScope then
+        if token.value=="function" then
+          local name,args,instStart = Loader.readFunctionHeader(tokens, index+1)
           
-          if token.value=="function" then
-            local name,args,instStart = Loader.readFunctionHeader(tokens, index+1)
-            
-            Async.insertTasks( 
-              { --this task happens AFTER the .buildInstructions call because the buildInstructions inserts into the front of the queue
-                label = "storeFunctionInstructions",
-                func = function( inst, nextIndex )
-                  local instruction = {
-                    op = "function",
-                    name = name,
-                    args = args,
-                    instructions = inst
-                  }
-                  table.insert(instructions, instruction)
-                  index = nextIndex
-                  return true
-                end
-              }
-            )
-            Loader.buildInstructions(tokens, instStart, token.blockLevel) --returns instructions, nextIndex
-            return --continue into inserted tasks
-          else
-            table.insert(instructions, {op="createScope", token = token})
-          end
-        end
+          Async.insertTasks( 
+            { --this task happens AFTER the .buildInstructions call because the buildInstructions inserts into the front of the queue
+              label = "storeFunctionInstructions",
+              func = function( inst, nextIndex )
+                local instruction = {
+                  op = "function",
+                  name = name,
+                  args = args,
+                  instructions = inst,
+                  index = #instructions+1
+                }
+                table.insert(instructions, instruction)
+                index = nextIndex
+                return true
+              end
+            }
+          )
+          Loader.buildInstructions(tokens, instStart, token.blockLevel) --returns instructions, nextIndex
+          return --continue into inserted tasks
+        
 
         --instructions with expresssions
-        if token.value == "return" then
+        elseif token.value == "return" or token.value=="until" then
           local infix, endTokenPos = Loader._collectExpression(tokens, index+1, false, token.line) --todo async improvment
           local instruction = {
-            op = "return",
-            infix = infix,
+            op = token.value,
+            infix = { [token.value=="until" and "condition" or "eval"] = infix },
+            index = #instructions+1
           }
           
           table.insert(instructions, instruction)
+
+          if token.value == "until" then
+            local deleteScope = {op="deleteScope", token = token, index = #instructions+1}
+            table.insert(instructions, deleteScope)
+            local startingBlock = table.remove(blocks)
+            if startingBlock.skip == false then
+              startingBlock.skip = deleteScope
+            end
+            if token.blockLevel <= exitBlockLevel then
+              return {instructions, index + 1}
+            end
+          end
+
           index = endTokenPos
+          return --continue
+        elseif token.value == "end" then
+          local deleteScope = {op="deleteScope", token = token, index = #instructions+1}
+          table.insert(instructions, deleteScope)
+          local startingBlock = table.remove(blocks)
+          if token.blockLevel <= exitBlockLevel then
+            return {instructions, index + 1}
+          end
+          if startingBlock.skip == false then
+            startingBlock.skip = deleteScope
+          end
+          index = index + 1
           return --continue
         elseif token.value == "if" or token.value == "elseif" then
           --TODO prevent varargs evaluation
           local infix, endTokenPos = Loader._collectExpression(tokens, index+1, false, token.line) --todo async improvment
           local instruction = {
             op = token.value,
-            infix = infix,
-            skip = false --not set
+            infix = {condition = infix},
+            skip = false, --not set
+            index = #instructions+1
           }
           
           table.insert(instructions, instruction)
+          table.insert(blocks, instruction)
           local nextToken = tokens[endTokenPos]
           if nextToken.type ~="keyword" or nextToken.value ~= "then" then
             error("`then` expected on line "..(tokens[endTokenPos-1].line))
@@ -720,11 +766,13 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
           local infix, endTokenPos = Loader._collectExpression(tokens, index+1, false, token.line) --todo async improvment
           local instruction = {
             op = "while",
-            infix = infix,
-            skip = false --not set
+            infix = {condition = infix},
+            skip = false, --not set
+            index = #instructions+1
           }
 
           table.insert(instructions, instruction)
+          table.insert(blocks, instruction)
           local nextToken = tokens[endTokenPos]
           if nextToken.type ~="keyword" or nextToken.value ~= "do" then
             error("`do` expected on line "..(tokens[endTokenPos-1].line))
@@ -744,9 +792,12 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
             local inst = {
               op = "for-in",
               vars = nextToken,
-              generatorInit = generatorInit,
+              infix = {
+                generatorInit = generatorInit,
+              },
               line = token.line,
               skip = false, --end block inst link
+              index = #instructions+1
             }
             table.insert(instructions, inst )
             table.insert(blocks, inst)
@@ -775,11 +826,14 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
             local inst = {
               op = "for",
               vars = token.value,
-              init = varInit,
-              limit = limit,
-              increment = increment or {type="num",value=1},
+              infix = {
+                init = varInit,
+                limit = limit,
+                increment = increment or {type="num",value=1},
+              },
               line = token.line,
-              skip = false --end inst
+              skip = false, --end inst
+              index = #instructions+1
             }
             table.insert( instructions, inst )
             table.insert( blocks, inst )
@@ -791,12 +845,21 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
 
 
 
-        if removeScope then
-          table.insert(instructions, {op="deleteScope", token = token})
-          if token.blockLevel <= exitBlockLevel then
-            return {instructions, index + 1}
-          end
-        end
+        
+      else --generic expression
+        --TODO prevent varargs evaluation
+        local infix, endTokenPos = Loader._collectExpression(tokens, index, false, token.line) --todo async improvment
+        local instruction = {
+          op = "eval",
+          infix = {
+            eval = infix
+          },
+          index = #instructions+1
+        }
+        
+        table.insert(instructions, instruction)
+        index = endTokenPos
+        return --continue
       end
 
 
@@ -812,6 +875,117 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
         }
       end
     }
+  )
+end
+--1 If the input character is an operand, print it.
+--2 If the input character is an operator- 
+-- a  If stack is empty push it to the stack.
+-- b  If ((its precedence value is greater than the precedence value of the character on top) OR (precedence is same AND associativity is right to left)), push.
+-- c  If ((its precedence value is lower) OR (precedence is same AND associativity is left to right)), 
+--    then pop from stack and 
+--    print while precedence of top char is more than the precedence value of the input character.
+--3 If the input character is ‘)’, then pop and print until top is ‘(‘. (Pop ‘(‘ but don’t print it.)
+--4 If stack becomes empty before encountering ‘(‘, then it’s a invalid expression.
+--5 Repeat steps 1-4 until input expression is completely read.
+--6 Pop the remaining elements from stack and print them.
+
+-- foo ( a + b )
+--foo a b + call
+
+
+function Loader._generatePostfix( infix )
+  local out, opStack = {}, {} --opstack contains ops in ascending order only (except ())
+  local index = 1
+  return 
+    Async.insertTasks(
+      Async.whileLoop("_generatePostfix",function() return index <= #infix end, function()
+        local token = infix[index]
+        if token.type == "op" then
+          local priority = Loader._ops[token.value] --higher happens first
+          if #opStack == 0 then
+            table.insert(opStack, token)
+          elseif token.value == ")" or token.value == "]" or token.value == "}" then
+            while #opStack > 0 and (
+              opStack[#opStack].value  ~= "(" and
+              opStack[#opStack].value  ~= "[" and
+              opStack[#opStack].value  ~= "{"
+            ) do
+              table.insert(out, table.remove(opStack))
+            end
+            if #opStack == 0 then 
+              error("postfix conversion failed, missing (),{} or [], this error should have been caught by an eariler step in the compiler...")
+            end
+            local par = table.remove(opStack) --pop ([{
+            if par.call then
+              table.insert( out, par )
+            end
+          else
+            if (Loader._ops[opStack[#opStack].value] > priority) 
+            or (Loader._rightAssociate[token.value] and Loader._ops[opStack[#opStack]] == priority) then
+              table.insert(out, table.remove(opStack))
+              while #opStack > 0 and (Loader._ops[opStack[#opStack]] > priority)  do
+                table.insert(out, table.remove(opStack))
+              end
+            end
+            table.insert(opStack, token)
+          end
+        else
+          table.insert( out, token )
+        end
+        index = index + 1
+      end),
+      Async.whileLoop("_generatePostfix-leftovers", function() return #opStack>0 end, function()
+        table.insert(out, table.remove(opStack))
+      end),
+      RETURN( "_generatePostfix", out )
+    )
+end
+
+function Loader.batchPostfix( instructions )
+  return Async.insertTasks(
+    Async.forEach( "Batch-Infix", function(i, inst)
+      if inst.instructions then
+        Loader.batchPostfix( inst.instructions ) --inserts task
+        --continues into subtask at end of loop itteration
+      end
+      if inst.infix then
+        inst.postfix = {}
+        for k, v in pairs(inst.infix) do
+          Async.insertTasks(
+            {label="store-postfix",func=function(postfix) --received from _generatePostfix bellow
+              inst.postfix[k] = postfix
+              return true
+            end}
+          )
+          Loader._generatePostfix( v ) --inserts a task before the return code, also returns postfix into async task
+        end
+      end
+    end, ipairs, instructions )
+  )
+end
+
+function Loader.execute( instructions, env, ... )
+  local index = 1
+  return Async.insertTasks(
+    Async.whileLoop("exec", function () return instructions[index] end, function ()
+      local inst = instructions[index]
+
+      if inst.op == "eval" then
+      elseif inst.op == "if" then
+      elseif inst.op == "elseif" then
+      elseif inst.op == "else" then
+      elseif inst.op == "while" then
+      elseif inst.op == "for" then
+      elseif inst.op == "for-in" then
+      elseif inst.op == "until" then
+      elseif inst.op == "createScope" then
+      elseif inst.op == "deleteScope" then
+      else
+        error("unhandled instruction '"..inst.op.."'")
+      end
+
+      index = index + 1
+    end)
   )
 end
 
@@ -839,5 +1013,6 @@ local testCode = [===[
 local rawTokens = sync( Loader.tokenize(testCode) )
 local tokens = sync( Loader.cleanupTokens( rawTokens ) )
 local instructions = sync( Loader.buildInstructions(tokens)  )
+sync( Loader.batchPostfix(instructions) )
 -- local tokens = Loader.tokenize(testCode)
 print"done"
