@@ -268,6 +268,8 @@ Loader._rightAssociate = {
 	["^"] = true
 }
 
+
+
 function Loader._closePar( openPar )
 	return (  { ["("]=")", ["["]="]", ["{"]="}" }) [ openPar ]
 end
@@ -964,13 +966,242 @@ function Loader.batchPostfix( instructions )
   )
 end
 
+function Loader._tokenValue( token, scope )
+  if token.type ~= "var" then
+    return token.value
+  end
+  return scope:get( token.value )
+end
+
+function Loader._popVal( stack, scope, line )
+  local token = table.remove(stack)
+  if not token then error("Error, empty stack from expression on line "..line) end
+  return Loader._tokenValue( token, scope )
+end
+
+function Loader._val( v, tName )
+  return {
+    type = tName or type(v),
+    value = v
+  }
+end
+
+Loader.constants = {
+  ["nil"] = Loader._val(nil),
+  ["true"] = Loader._val(true),
+  ["false"] = Loader._val(false),
+}
+
+function Loader._varargs( ... )
+  return {
+    type = "varargs",
+    value = ..., --first value
+    varargs = {...}
+  }
+end
+
+function Loader.eval( postfix, scope, line )
+  local stack = {}
+  local pop = Loader._popVal
+  local val = Loader._val
+  Async.insertTasks(
+    Async.forEach("eval-postfix", function(index, token)
+      if token.type == "op" then
+        if token.call then
+        elseif token.value == "." then
+          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
+          local v = a[b]
+          table.insert(stack, val(a[b]))
+
+        elseif token.value == "not" then
+          local a = pop(stack, scope, line).value
+          table.insert(stack, val(not a))
+
+        elseif token.value == "#" then
+          local a = pop(stack, scope, line).value
+          table.insert(stack, val(#a))
+
+        elseif token.value == "^" then
+          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          table.insert(stack, val(a^b))
+
+        elseif token.value == "*" then
+          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          table.insert(stack, val(a*b))
+
+        elseif token.value == "/" then
+          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          table.insert(stack, val(a/b))
+
+        elseif token.value == "+" then
+          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          table.insert(stack, val(a+b))
+
+        elseif token.value == "-" then
+          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          table.insert(stack, val(a-b))
+
+        elseif token.value == "==" then
+          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          table.insert(stack, val(a==b))
+
+        elseif token.value == "~=" then
+          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          table.insert(stack, val(a~=b))
+
+        elseif token.value == "<=" then
+          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          table.insert(stack, val(a<=b))
+
+        elseif token.value == ">=" then
+          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          table.insert(stack, val(a>=b))
+
+        elseif token.value == "<" then
+          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          table.insert(stack, val(a<b))
+
+        elseif token.value == ">" then
+          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          table.insert(stack, val(a>b))
+
+        elseif token.value == "and" then
+          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          table.insert(stack, val(a and b))
+
+        elseif token.value == "or" then
+          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          table.insert(stack, val(a or b))
+
+        elseif token.value == ".." then
+          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          table.insert(stack, val(a .. b))
+          
+        
+
+        elseif token.value == "," then
+          local b, a = pop(stack, scope, line), postfix(stack, scope, line)
+          if a.varargs and not a.weak then
+            table.insert(a.varargs, b)
+            table.insert(stack, a)
+          else
+            table.insert( Loader._varargs(a.value,b.value) )
+          end
+        elseif token.value == ":" then
+          error"this token should be expanded in a previous step before evaluation"
+
+        elseif token.value == "%" then
+          local b, a = pop(stack, scope, line), postfix(stack, scope, line)
+          table.insert(stack, val(a % b))
+        -- elseif token.value == "" then
+        else
+          error("Unhandled token "..token.value)
+        end
+      elseif token.value == "..." then --not op
+        local a = Loader._tokenValue(token, scope) --{type="varargs", weak=true, value=, varargs=}
+        table.insert( a )
+      else
+        table.insert(stack, token)
+      end
+    end, ipairs, postfix),
+    {
+      label = "eval-expand-varargs",
+      func = function()
+        if stack[#stack].varargs then
+          local varargs = table.remove(stack).varargs
+          for i=1,#varargs do
+            table.insert(varargs[i])
+          end
+          return true --task complete
+        end
+      end
+    },
+    Async.RETURN( stack )
+  )
+end
+
+local Scope = {}
+function Scope:new(name, line, parent, index, env)
+  local obj = {
+    env = env or {},
+    index = index,
+    name = name.."-"..line,
+    parent
+  }
+  self.__index = self
+  setmetatable(obj, self)
+  return obj
+end
+
+function Scope:getIndex()
+  return self.index or self.parent and self.parent:getIndex()
+end
+
+function Scope:set(name, value)
+  if self.env[name] or not self.parent then
+    self.env[name] = value
+  else
+    self.parent:set(name, value)
+  end
+end
+
+function Scope:get(name)
+  if self.env[name] then
+    return self.env[name]
+  end
+  if self.parent then
+    return self.parent:get(name)
+  end
+  return Loader.constants["nil"]
+end
+
+--index may be nil
+function Loader._appendCallEnv( callStack, name, line, index, env )
+  local scope = Scope:new( name, line, callStack[#callStack], index, env)
+  table.insert(callStack, scope )
+end
+
 function Loader.execute( instructions, env, ... )
+  local callStack = {
+  }
+  Loader._appendCallEnv( callStack, "MAIN_CHUNK", 1, 1 )
+  callStack[1].env = env or callStack[1].env
+  local prgmArgs = {
+    type="varargs",
+    weak = true, -- ..., 10 | 10 is not appended, first value from ... used
+    value = ...,
+    varargs = {...}
+  }
+  callStack[1]:set("...", prgmArgs)
+
   local index = 1
   return Async.insertTasks(
     Async.whileLoop("exec", function () return instructions[index] end, function ()
       local inst = instructions[index]
+      local top = callStack[#callStack]
 
-      if inst.op == "eval" then
+      if inst.op == "assign" then
+        -- local instruction = {
+        --   op = "assign",
+        --   vars = token.value,
+        --   infix = { eval = infix },
+        --   isLocal = localVar,
+        --   index = #instructions+1
+        -- }
+
+        Async.insertTasks({
+          label = "assignment eval results",
+          func = function( stack )
+            for i=1, #inst.vars do
+              top:set(inst.vars[i], stack[i] or Loader.constants["nil"] )
+            end
+          end
+        })
+
+        --inserts task
+        Loader.eval( inst.postfix.eval, top, inst.line )
+
+      elseif inst.op == "eval" then
       elseif inst.op == "if" then
       elseif inst.op == "elseif" then
       elseif inst.op == "else" then
@@ -979,7 +1210,9 @@ function Loader.execute( instructions, env, ... )
       elseif inst.op == "for-in" then
       elseif inst.op == "until" then
       elseif inst.op == "createScope" then
+        Loader._appendCallEnv( callStack, "block start", inst.line, inst.index )
       elseif inst.op == "deleteScope" then
+        table.remove(callStack)
       else
         error("unhandled instruction '"..inst.op.."'")
       end
@@ -1009,10 +1242,12 @@ local testCode = [===[
     print(foo(3,4)-1)
   end
 ]===]
+--TODO: local a,b,c declaring
 
 local rawTokens = sync( Loader.tokenize(testCode) )
 local tokens = sync( Loader.cleanupTokens( rawTokens ) )
 local instructions = sync( Loader.buildInstructions(tokens)  )
 sync( Loader.batchPostfix(instructions) )
+sync( Loader.execute( instructions ) )
 -- local tokens = Loader.tokenize(testCode)
 print"done"
