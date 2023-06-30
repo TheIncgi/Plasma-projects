@@ -980,10 +980,14 @@ function Loader._tokenValue( token, scope )
 end
  
 --TODO varargs issue
-function Loader._popVal( stack, scope, line )
+function Loader._popVal( stack, scope, line, keepVarargs )
   local token = table.remove(stack)
   if not token then error("Error, empty stack from expression on line "..line) end
-  return Loader._tokenValue( token, scope )
+  local value = Loader._tokenValue( token, scope )
+  if value.type == "varargs" and not keepVarargs then
+    return value.value
+  end
+  return value
 end
 
 function Loader._val( v, tName )
@@ -1015,7 +1019,7 @@ function Loader.eval( postfix, scope, line )
     Async.forEach("eval-postfix", function(index, token)
       if token.type == "op" then
         if token.call then
-          local args =  pop(stack, scope, line)
+          local args =  pop(stack, scope, line, true)
           local func
           if args.value ~= "function" then
             func = pop(stack, scope, line)
@@ -1023,17 +1027,25 @@ function Loader.eval( postfix, scope, line )
             func = args
             args = Loader._varargs()
           end
-          Async.insertTasks({
-            label = "eval-call-result",
-            func = function(varargsResult)
-              table.insert(stack, varargsResult)
-              return true
+          if func.value then
+            local results = {func.value( table.unpack(args.varargs or {args}) )}
+            for i=1, #results do
+              results[i] = Loader._val(results[i])
             end
-          })
-          for i=1,#func.args do
-            func.env:set(true,func.args[i], table.remove(args.varargs) or Loader.constants["nil"])
+            table.insert(stack, Loader._varargs(table.unpack(results)))
+          else
+            Async.insertTasks({
+              label = "eval-call-result",
+              func = function(varargsResult)
+                table.insert(stack, varargsResult)
+                return true
+              end
+            })
+            for i=1,#func.args do
+              func.env:set(true,func.args[i], table.remove(args.varargs) or Loader.constants["nil"])
+            end
+            Loader.execute(func.instructions, func.env, table.unpack(args.varargs or {args}))
           end
-          Loader.execute(func.instructions, func.env, table.unpack(args.varargs))
         elseif token.value == "." then
           local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
           local v = a[b]
@@ -1102,11 +1114,9 @@ function Loader.eval( postfix, scope, line )
         elseif token.value == ".." then
           local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
           table.insert(stack, val(a .. b))
-          
-        
 
         elseif token.value == "," then
-          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          local b, a = pop(stack, scope, line), pop(stack, scope, line, true)
           if a.varargs and not a.weak then
             table.insert(a.varargs, b)
             table.insert(stack, a)
@@ -1173,6 +1183,13 @@ function Scope:set(isLocal, name, value)
   end
 end
 
+function Scope:setNativeFunc( name, func )
+  self:set(false, name, {
+    type = "function",
+    value = func
+  })
+end
+
 function Scope:get(name)
   if self.env[name] then
     return self.env[name]
@@ -1194,6 +1211,14 @@ function Scope:captureLocals(fenv)
   return self.parent:captureLocals( fenv )
 end
 
+function Scope:addGlobals()
+  self:setNativeFunc( "print", print )
+  self:setNativeFunc( "ipairs", ipairs )
+  self:setNativeFunc( "pairs", pairs )
+  self:setNativeFunc( "next", next )
+  -- scope:setNativeFunc( "",  )
+end
+
 --index may be nil
 function Loader._appendCallEnv( callStack, name, line, index, env )
   local scope = Scope:new( name, line, callStack[#callStack], index, env)
@@ -1205,6 +1230,7 @@ function Loader.execute( instructions, env, ... )
   }
   if not env then
     Loader._appendCallEnv( callStack, "MAIN_CHUNK", 1, 1 )
+    callStack[1]:addGlobals()
   else
     callStack[1] = env
   end
@@ -1245,8 +1271,11 @@ function Loader.execute( instructions, env, ... )
 
         --inserts task
         Loader.eval( inst.postfix.eval, top, inst.line )
-
+        
       elseif inst.op == "eval" then
+        --inserts task
+        Loader.eval( inst.postfix.eval, top, inst.line )
+
       elseif inst.op == "return" then
         Async.insertTasks({
           label = "assignment eval results",
@@ -1312,6 +1341,7 @@ local testCode = [===[
   end
 ]===]
 --TODO: local a,b,c declaring
+--TODO: local function
 
 local rawTokens = sync( Loader.tokenize(testCode) )
 local tokens = sync( Loader.cleanupTokens( rawTokens ) )
