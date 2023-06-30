@@ -73,7 +73,7 @@ function Async.sync( task )
         return
       end
 		else
-			error( "Invalid task result during sync",2 )
+			error( "Invalid task result during sync ["..(t.label or "?").."]",2 )
 		end
 	end
 	error( "Exausted tasks during sync", 2 )
@@ -640,7 +640,7 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
   local index = start or 1
   local exitBlockLevel = exitBlockLevel or 0
 
-  table.insert(instructions, {op="createScope"})
+  table.insert(instructions, {op="createScope", line = tokens[index] and tokens[index].line or "[?]"})
 
   return insertTasks(
     Async.whileLoop("Loader.groupInstructions-main["..index.."]", function() return index <= #tokens end, function()
@@ -666,7 +666,8 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
           vars = token.value,
           infix = { eval = infix },
           isLocal = localVar,
-          index = #instructions+1
+          index = #instructions+1,
+          line = token.line
         }
 
         table.insert(instructions, instruction)
@@ -696,7 +697,8 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
                   name = name,
                   args = args,
                   instructions = inst,
-                  index = #instructions+1
+                  index = #instructions+1,
+                  line = token.line
                 }
                 table.insert(instructions, instruction)
                 index = nextIndex
@@ -714,13 +716,14 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
           local instruction = {
             op = token.value,
             infix = { [token.value=="until" and "condition" or "eval"] = infix },
-            index = #instructions+1
+            index = #instructions+1,
+            line = token.line
           }
           
           table.insert(instructions, instruction)
 
           if token.value == "until" then
-            local deleteScope = {op="deleteScope", token = token, index = #instructions+1}
+            local deleteScope = {op="deleteScope", token = token, index = #instructions+1, line = token.line}
             table.insert(instructions, deleteScope)
             local startingBlock = table.remove(blocks)
             if startingBlock.skip == false then
@@ -734,7 +737,7 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
           index = endTokenPos
           return --continue
         elseif token.value == "end" then
-          local deleteScope = {op="deleteScope", token = token, index = #instructions+1}
+          local deleteScope = {op="deleteScope", token = token, index = #instructions+1, line = token.line}
           table.insert(instructions, deleteScope)
           local startingBlock = table.remove(blocks)
           if token.blockLevel <= exitBlockLevel then
@@ -752,7 +755,8 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
             op = token.value,
             infix = {condition = infix},
             skip = false, --not set
-            index = #instructions+1
+            index = #instructions+1,
+            line = token.line
           }
           
           table.insert(instructions, instruction)
@@ -770,7 +774,8 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
             op = "while",
             infix = {condition = infix},
             skip = false, --not set
-            index = #instructions+1
+            index = #instructions+1,
+            line = token.line
           }
 
           table.insert(instructions, instruction)
@@ -856,7 +861,8 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
           infix = {
             eval = infix
           },
-          index = #instructions+1
+          index = #instructions+1,
+          line = token.line
         }
         
         table.insert(instructions, instruction)
@@ -968,11 +974,12 @@ end
 
 function Loader._tokenValue( token, scope )
   if token.type ~= "var" then
-    return token.value
+    return token
   end
   return scope:get( token.value )
 end
-
+ 
+--TODO varargs issue
 function Loader._popVal( stack, scope, line )
   local token = table.remove(stack)
   if not token then error("Error, empty stack from expression on line "..line) end
@@ -1008,6 +1015,25 @@ function Loader.eval( postfix, scope, line )
     Async.forEach("eval-postfix", function(index, token)
       if token.type == "op" then
         if token.call then
+          local args =  pop(stack, scope, line)
+          local func
+          if args.value ~= "function" then
+            func = pop(stack, scope, line)
+          else
+            func = args
+            args = Loader._varargs()
+          end
+          Async.insertTasks({
+            label = "eval-call-result",
+            func = function(varargsResult)
+              table.insert(stack, varargsResult)
+              return true
+            end
+          })
+          for i=1,#func.args do
+            func.env:set(true,func.args[i], table.remove(args.varargs) or Loader.constants["nil"])
+          end
+          Loader.execute(func.instructions, func.env, table.unpack(args.varargs))
         elseif token.value == "." then
           local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
           local v = a[b]
@@ -1022,76 +1048,76 @@ function Loader.eval( postfix, scope, line )
           table.insert(stack, val(#a))
 
         elseif token.value == "^" then
-          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
           table.insert(stack, val(a^b))
 
         elseif token.value == "*" then
-          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
           table.insert(stack, val(a*b))
 
         elseif token.value == "/" then
-          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
           table.insert(stack, val(a/b))
 
         elseif token.value == "+" then
-          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
           table.insert(stack, val(a+b))
 
         elseif token.value == "-" then
-          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
           table.insert(stack, val(a-b))
 
         elseif token.value == "==" then
-          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
           table.insert(stack, val(a==b))
 
         elseif token.value == "~=" then
-          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
           table.insert(stack, val(a~=b))
 
         elseif token.value == "<=" then
-          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
           table.insert(stack, val(a<=b))
 
         elseif token.value == ">=" then
-          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
           table.insert(stack, val(a>=b))
 
         elseif token.value == "<" then
-          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
           table.insert(stack, val(a<b))
 
         elseif token.value == ">" then
-          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
           table.insert(stack, val(a>b))
 
         elseif token.value == "and" then
-          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
           table.insert(stack, val(a and b))
 
         elseif token.value == "or" then
-          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
           table.insert(stack, val(a or b))
 
         elseif token.value == ".." then
-          local b, a = pop(stack, scope, line).value, postfix(stack, scope, line).value
+          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
           table.insert(stack, val(a .. b))
           
         
 
         elseif token.value == "," then
-          local b, a = pop(stack, scope, line), postfix(stack, scope, line)
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
           if a.varargs and not a.weak then
             table.insert(a.varargs, b)
             table.insert(stack, a)
           else
-            table.insert( Loader._varargs(a.value,b.value) )
+            table.insert( stack, Loader._varargs(a,b) )
           end
         elseif token.value == ":" then
           error"this token should be expanded in a previous step before evaluation"
 
         elseif token.value == "%" then
-          local b, a = pop(stack, scope, line), postfix(stack, scope, line)
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
           table.insert(stack, val(a % b))
         -- elseif token.value == "" then
         else
@@ -1109,14 +1135,16 @@ function Loader.eval( postfix, scope, line )
       func = function()
         if stack[#stack].varargs then
           local varargs = table.remove(stack).varargs
-          for i=1,#varargs do
-            table.insert(varargs[i])
+          for i=1, #stack-1 do
+            stack[i].varargs = nil
           end
-          return true --task complete
+          for i=1,#varargs do
+            table.insert(stack, varargs[i])
+          end
         end
+        return {stack} --return stack
       end
-    },
-    Async.RETURN( stack )
+    }
   )
 end
 
@@ -1126,7 +1154,7 @@ function Scope:new(name, line, parent, index, env)
     env = env or {},
     index = index,
     name = name.."-"..line,
-    parent
+    parent = parent
   }
   self.__index = self
   setmetatable(obj, self)
@@ -1137,8 +1165,8 @@ function Scope:getIndex()
   return self.index or self.parent and self.parent:getIndex()
 end
 
-function Scope:set(name, value)
-  if self.env[name] or not self.parent then
+function Scope:set(isLocal, name, value)
+  if isLocal or self.env[name] or not self.parent then
     self.env[name] = value
   else
     self.parent:set(name, value)
@@ -1155,6 +1183,17 @@ function Scope:get(name)
   return Loader.constants["nil"]
 end
 
+function Scope:captureLocals(fenv)
+  local fenv = fenv or {}
+  if not self.parent then return fenv end --don't capture globals
+  for k,v in pairs( self.env ) do
+    if not fenv[k] then
+      fenv[k] = v
+    end
+  end
+  return self.parent:captureLocals( fenv )
+end
+
 --index may be nil
 function Loader._appendCallEnv( callStack, name, line, index, env )
   local scope = Scope:new( name, line, callStack[#callStack], index, env)
@@ -1164,8 +1203,12 @@ end
 function Loader.execute( instructions, env, ... )
   local callStack = {
   }
-  Loader._appendCallEnv( callStack, "MAIN_CHUNK", 1, 1 )
-  callStack[1].env = env or callStack[1].env
+  if not env then
+    Loader._appendCallEnv( callStack, "MAIN_CHUNK", 1, 1 )
+  else
+    callStack[1] = env
+  end
+  -- callStack[1].env = env or callStack[1].env
   local prgmArgs = {
     type="varargs",
     weak = true, -- ..., 10 | 10 is not appended, first value from ... used
@@ -1192,9 +1235,11 @@ function Loader.execute( instructions, env, ... )
         Async.insertTasks({
           label = "assignment eval results",
           func = function( stack )
+            local target = inst.isLocal and callStack[#callStack] or callStack[1]
             for i=1, #inst.vars do
-              top:set(inst.vars[i], stack[i] or Loader.constants["nil"] )
+              target:set(inst.isLocal, inst.vars[i].value, stack[i] or Loader.constants["nil"] )
             end
+            return true
           end
         })
 
@@ -1202,6 +1247,29 @@ function Loader.execute( instructions, env, ... )
         Loader.eval( inst.postfix.eval, top, inst.line )
 
       elseif inst.op == "eval" then
+      elseif inst.op == "return" then
+        Async.insertTasks({
+          label = "assignment eval results",
+          func = function( stack )
+            return { Loader._varargs(table.unpack(stack)) }
+          end
+        })
+        --inserts task
+        Loader.eval( inst.postfix.eval, top, inst.line )
+        return true --exit, return values from task passed
+      elseif inst.op == "function" then --capture locals & add to env
+        local locals = callStack[#callStack]:captureLocals()
+        local fenv = Scope:new("fenv: "..inst.name, inst.line, callStack[1], index, locals)
+        local fval = {
+          env = fenv,
+          instructions = inst.instructions,
+          line = inst.line,
+          args = inst.args,
+          type = "function"
+        }
+
+        local target = inst.isLocal and callStack[#callStack] or callStack[1]
+        target:set( inst.isLocal, inst.name, fval )
       elseif inst.op == "if" then
       elseif inst.op == "elseif" then
       elseif inst.op == "else" then
@@ -1209,6 +1277,7 @@ function Loader.execute( instructions, env, ... )
       elseif inst.op == "for" then
       elseif inst.op == "for-in" then
       elseif inst.op == "until" then
+        
       elseif inst.op == "createScope" then
         Loader._appendCallEnv( callStack, "block start", inst.line, inst.index )
       elseif inst.op == "deleteScope" then
