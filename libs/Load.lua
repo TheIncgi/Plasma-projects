@@ -190,6 +190,8 @@ Loader.keywords = {
   ["for"]      = true,
   ["function"] = true,
   ["if"]       = true,
+  ["elseif"]   = true,
+  ["else"]     = true,
   ["in"]       = true,
   ["local"]    = true,
   ["nil"]      = true,
@@ -410,7 +412,7 @@ function Loader.cleanupTokens( tokens )
           index = index-1
         end
       
-      elseif tokenType == "op" then
+      elseif tokenType == "op" or (tokenType=="keyword" and token == "in") then
         if (token == "=" or token == "in") and prior then
           local newToken = {
             type = "assignment-set",
@@ -512,7 +514,8 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma 
       
       if requiresValue then
         if token.type == "op" then
-          if not startPermitted[token.value] then
+          local allowingDot = token.value == "." and index ~= start
+          if not startPermitted[token.value] and (not allowingDot) then
             error("Expected a value, found op "..token.value.." instead on line "..token.line)
           end
           if token.value == "{" or token.value == "(" or token.value=="[" then
@@ -674,16 +677,6 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
         index = endTokenPos
         return --continue
       elseif token.type == "keyword" then
-        -- local removeScope = false
-        -- if token.value == "function"
-        -- or token.value == "do"
-        -- or token.value == "repeat" then
-        --   addScope = true
-        -- elseif token.value == "else" or token.value == "elseif" then
-        --   addScope, removeScope = true, true
-        -- elseif token.value == "end" or token.value == "until" then
-        --   removeScope = true
-        -- end
 
         if token.value=="function" then
           local name,args,instStart = Loader.readFunctionHeader(tokens, index+1)
@@ -698,7 +691,8 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
                   args = args,
                   instructions = inst,
                   index = #instructions+1,
-                  line = token.line
+                  line = token.line,
+                  isLocal = localVar
                 }
                 table.insert(instructions, instruction)
                 index = nextIndex
@@ -711,6 +705,15 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
         
 
         --instructions with expresssions
+        elseif token.value == "do" then
+          local inst = {
+            op = "createScope",
+            line = token.line,
+            index = #instructions+1,
+            skip = false,
+          }
+          table.insert(instructions, inst)
+          table.insert(blocks, inst)
         elseif token.value == "return" or token.value=="until" then
           local infix, endTokenPos = Loader._collectExpression(tokens, index+1, false, token.line) --todo async improvment
           local instruction = {
@@ -741,7 +744,7 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
           local startingBlock = table.remove(blocks)
           local endInst = {op="end", line = token.line, index = #instructions+1}
           table.insert(instructions, endInst)
-          if startingBlock.skip == false then
+          if startingBlock and startingBlock.skip == false then
             startingBlock.skip = endInst
             endInst.start = startingBlock
           end
@@ -782,10 +785,11 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
 
         elseif token.value == "else" then
           local ifInst = table.remove(blocks)
-          local instruction = {op="else",line = token.line, index = #instructions+1}
+          local instruction = {op="else",line = token.line, index = #instructions+1, skip=false}
           ifInst.skip = instruction
           table.insert(instructions, instruction)
           table.insert(blocks, instruction)
+          index = index + 1
           return --continue
 
         elseif token.value == "while" then
@@ -814,29 +818,18 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
           end
           table.insert(instructions, {op="createScope", line = token.line, index = #instructions+1})
           if nextToken.token == "in" then
-            local generatorInit, nextTokenIndex = Loader._collectExpression(tokens, index+1, false, token.line, true)
+            local generatorInit, nextTokenIndex = Loader._collectExpression(tokens, index+2, false, token.line, true)
             local doToken = tokens[nextTokenIndex]
             if doToken.type ~= "keyword" or doToken.value ~= "do" then
               error("Expected do for `for in` loop on line "..token.line)
             end
 
             local initGenerator = {
-              op="assign",
-              vars = {"$generator"}, --invalid var name as private variable
+              op="for-in-init",
+              --vars = {"$generator"}, --invalid var name as private variable
               infix = {eval = generatorInit}
             }
             table.insert(instructions, initGenerator)
-
-            local itterate = { --TODO itterator logic
-              Loader._val("$generator", "var"),
-              Loader._varargs(),
-              {
-                type = "op",
-                value = "(",
-                call = true,
-                line = nextToken.line
-              }
-            }
 
             local inst = {
               op = "for-in",
@@ -852,7 +845,7 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
           elseif #nextToken.value ~= 1 then
             error("varargs can't be used on initalization of a for loop with `=` on line "..token.line)
           else -- =
-            local varInit, nextTokenIndex = Loader._collectExpression(tokens, index+1, false, token.line, true)
+            local varInit, nextTokenIndex = Loader._collectExpression(tokens, index+2, false, token.line, true)
             local expectedComma = tokens[nextTokenIndex]
             if expectedComma.type ~= "op" or expectedComma.value~="," then
               error("Expected comma after variable init for `for = ` loop on line "..token.line)
@@ -1076,6 +1069,36 @@ function Loader._varargs( ... )
   }
 end
 
+function Loader.callFunc( func, args, callback )
+  local fArgs = args.varargs or {args}
+  if func.value then
+    local result
+    for i=1, #fArgs do
+      fArgs[i] = fArgs[i].value
+    end
+    --call
+    local results = {func.value( table.unpack(fArgs) )}
+    for i=1, #results do
+      results[i] = Loader._val(results[i])
+    end
+    result = Loader._varargs(table.unpack(results))
+    callback( result )
+    
+  else
+    for i=1,#func.args do
+      func.env:set(true,func.args[i], table.remove(args.varargs) or Loader.constants["nil"])
+    end
+    Async.insertTasks({
+      label = "callFunc-callback-return",
+      func = function( result )
+        callback( result )
+        return true
+      end
+    })
+    Loader.execute(func.instructions, func.env, table.unpack(fArgs))
+  end
+end
+
 function Loader.eval( postfix, scope, line )
   local stack = {}
   local pop = Loader._popVal
@@ -1092,31 +1115,12 @@ function Loader.eval( postfix, scope, line )
             func = args
             args = Loader._varargs()
           end
-          if func.value then
-            local fArgs = args.varargs or {args}
-            for i=1, #fArgs do
-              fArgs[i] = fArgs[i].value
-            end
-            --call
-            local results = {func.value( table.unpack(fArgs) )}
-            for i=1, #results do
-              results[i] = Loader._val(results[i])
-            end
-            table.insert(stack, Loader._varargs(table.unpack(results)))
-          else
-            Async.insertTasks({
-              label = "eval-call-result",
-              func = function(varargsResult)
-                table.insert(stack, varargsResult)
-                return true
-              end
-            })
-            for i=1,#func.args do
-              func.env:set(true,func.args[i], table.remove(args.varargs) or Loader.constants["nil"])
-            end
-            Loader.execute(func.instructions, func.env, table.unpack(args.varargs or {args}))
-          end
-        elseif token.value == "." then
+          
+          Loader.callFunc( func, args, function( result )
+            table.insert( stack, result )
+          end)
+
+        elseif token.value == "." then --TODO use b.name not [b]
           local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
           local v = a[b]
           table.insert(stack, val(a[b]))
@@ -1379,7 +1383,10 @@ function Loader.execute( instructions, env, ... )
             top.ifState = value
             if not value then
               index = inst.skip.index
+            else
+              index = index + 1
             end
+            return true --task complete
           end
         })
 
@@ -1399,6 +1406,7 @@ function Loader.execute( instructions, env, ... )
               if not value then
                 index = inst.skip.index
               end
+              return true --task complete
             end
           })
           
@@ -1465,12 +1473,32 @@ function Loader.execute( instructions, env, ... )
         end
         return --continue
 
+      
+      elseif inst.op == "for-in-init" then
+        Async.insertTasks({
+          label = "for-in-init-result",
+          func = function( varargs )
+            top.generator = varargs.value
+            top.previousFor = Loader._varargs(select(2, varargs.varargs))
+          end
+        })
+        Loader.eval( inst.forInit, top, inst.line )
       elseif inst.op == "for-in" then
         top.isLoop = true
         top.start = inst
         top.stop = inst.skip
 
-        Loader.eval(  )
+        local gen = top.generator.value
+        if (not gen) or gen.type ~= "function" then
+          error("generator must be function for `for-in` loop on line"..inst.line)
+        end
+
+        Loader.callFunc( gen, top.previousFor, function ( genVals )
+          top.previousFor = genVals
+          for i=1, #inst.vars do
+            top:set(true, inst.vars[i], genVals.varargs[i])
+          end
+        end)
 
       elseif inst.op == "until" then
         
@@ -1506,6 +1534,43 @@ local testCode = [===[
   else
     print(foo(3,4)-1)
   end
+
+  for i=1,3 do
+    print( i )
+  end
+
+  local t = {1,2,3}
+  print( "Len t:" .. #t )
+  for k, v in ipairs( t ) do
+    print("  ["..k.."] = "..v)
+  end
+
+  do
+    local tmp = 10
+    print("tmp in scope: "..tmp)
+  end
+  print("tmp out of scope: "..tostring(tmp))
+
+  local r = 1
+  do
+    print( "r: "..r )
+    r = r + 1
+  until r > 6
+
+  local inlineFunc = function(x)
+    print( x )
+  end
+
+  inlineFunc("inline works")
+  --print"comments"
+  --[[
+    print"block comments
+  ]]
+  --[==[
+    print"long block comments"
+  ]==]
+
+  print"done"
 ]===]
 --TODO: local a,b,c declaring
 --TODO: local function
