@@ -243,6 +243,7 @@ Loader._ops = {
 	["%"] = 6, --mod
 	["+"] = 5,
 	["-"] = 5,
+  [".."] = 4.5, --concat
 	--compare
 	["=="] = 4,
 	-- ["!="] = 4,
@@ -259,7 +260,7 @@ Loader._ops = {
 	--non op
 	[SINGLE_QUOTE] = false,
 	[DOUBLE_QUOTE] = false, --quotes, highligher is buggy with '
-	["//"] = false, -- comment
+	["--"] = false, -- comment
 	[";"] = false, --line end
 	["\n"] = false, --for debug line numbers
 	[" "] = false, --prevent = = from being read as ==
@@ -279,13 +280,24 @@ end
 
 function Loader._chunkType( text )
 	--if not text then return false end
-	if text:match"[ \t\n\r]" and text~="\n" and not text:match"^['\"]" then
+  if text:sub(1,2) == "--" then
+    local block = text:sub(3):match"%[=*%["  
+    local commentEnd = block and block:gsub("%[","]") or "\n"
+    if text:sub(-#commentEnd) == commentEnd then
+      return "comment"
+    elseif text:find(commentEnd,1,true) then 
+      return false
+    else
+      return "incomplete_comment"
+    end
+	elseif text:match"[ \t\n\r]" and text~="\n" and not text:match"^['\"]" then
 		return false
 	elseif text=="\n" then
 		return "line"
-	elseif text:match"//.+" then 
-		return false
-	end
+	-- elseif text:match"//.+" then 
+	-- 	return false
+  end
+
 	for _, name in ipairs{ "op","num","var","str" } do
 		local group = Loader._patterns[ name ]
 		local txt =  text
@@ -376,6 +388,7 @@ function Loader.cleanupTokens( tokens )
   local line = 1
   local index = 1
   local blockStack = {}
+  local comment = false
   return insertTasks(
     Async.whileLoop("cleanupTokens",function() return index <= #tokens end,
     function()
@@ -390,6 +403,13 @@ function Loader.cleanupTokens( tokens )
       local prior = tokens[index-1]
       local twicePrior = tokens[index-2]
       local tokenType = Loader._chunkType(token)
+
+      if tokenType == "comment" then
+        line = line + #token:gsub("[^\n]","")
+        table.remove(tokens, index)
+        return --continue
+      end
+
       if Loader._ops[token] then tokenType = "op" end
       if Loader.keywords[token] then tokenType = "keyword" end
       if token=="or" or token=="and" or token=="not" then tokenType = "op" end
@@ -434,9 +454,11 @@ function Loader.cleanupTokens( tokens )
         elseif token == "(" or token == "{" then -- " doesn't"
           if prior and (
               (prior.type == "var")
-            or (prior.type == "op" and (prior.value == ")" or prior.value == "]"))
+            or (prior.type == "op" and (prior.value == ")" or prior.value == "]" or prior.value == "}"))
           ) then
             infoToken.call = true  
+          elseif prior and prior.type == "keyword" and prior.value == "function" then
+            prior.inlineFunc = true
           end
         end
       elseif tokenType=="keyword" then
@@ -485,6 +507,7 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma 
   local brackets = {}
   local requiresValue = true
   local argGroups = 1
+  local inlineFunctions = 0
 
   local startPermitted = {
     ["#"]   = true,
@@ -522,7 +545,26 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma 
             table.insert(brackets, token)
           end
           --requiresValue = true again
-        else
+        elseif token.inlineFunc then
+          local fname, args, instStart = Loader.readFunctionHeader(tokens, index, true)
+          
+          Async.insertTasks( 
+            { --this task happens AFTER the .buildInstructions call because the buildInstructions inserts into the front of the queue
+              label = "storeInlineFunctionInstructions",
+              func = function( inst, nextIndex )
+                token.instructions = inst
+                token.name = fname
+                token.args = args
+                token.start = index
+                token.skip = nextIndex
+                index = nextIndex
+                return true
+              end
+            }
+          )
+          Loader.buildInstructions(tokens, instStart, token.blockLevel) --returns instructions, nextIndex
+          return --continue into inserted tasks
+        else          
           requiresValue = false
         end
       elseif token.type == "op" then
@@ -599,21 +641,25 @@ function Loader._collectExpression( tokens, index, allowAssignment, line, ignore
   return infix, endTokenPos
 end
 
-function Loader.readFunctionHeader(tokens, index)
-  local fToken = tokens[index-1]
-  local fname = tokens[index]
-  if not fname or fname.type~="var" then
-    error("Expected name for function on line"..fToken.line)
-  end
-  fname = fname.value
-  while tokens[index+1].value == "." do
-    if tokens[index+2].type=="var" then
-      fname = fname .. "." .. tokens[index+2].value
-      index = index + 2
-    else
-      error("Expected name after `.` in function on line "..fToken.line)
+function Loader.readFunctionHeader(tokens, index, inline)
+  local fname
+  if not inline then
+    local fToken = tokens[index-1]
+    fname = tokens[index]
+    if not fname or fname.type~="var" then
+      error("Expected name for function on line"..fToken.line)
+    end
+    fname = fname.value
+    while tokens[index+1].value == "." do
+      if tokens[index+2].type=="var" then
+        fname = fname .. "." .. tokens[index+2].value
+        index = index + 2
+      else
+        error("Expected name after `.` in function on line "..fToken.line)
+      end
     end
   end
+  fname = fname or ("[func:"..tokens[index].line.."]")
   local par = tokens[index+1]
   if not par or par.type~="op" or par.value~="(" then
     error("Expected `(` for function on line"..fToken.line)
@@ -623,7 +669,7 @@ function Loader.readFunctionHeader(tokens, index)
   while tokens[index] and tokens[index].value~=")" do
     local name = tokens[index]
     if not name or name.type~="var" then
-      error("Expected arg name or ) for function '"..fname.."' on line"..fToken.line)
+      error("Expected arg name or ) for function '"..fname.."' on line"..tokens[index-1].line)
     end
     if (not tokens[index+1]) or (tokens[index+1].value~="," and tokens[index+1].value~=")") then
       error("Expected `,` or `)` in function '' on line "..fToken.line)
@@ -865,30 +911,33 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
 
             local forInit = {
               op="assign", 
-              vars = token.value,
+              vars = {nextToken.value[1]},
               infix = {eval = varInit},
               line = token.line,
-              index = #instructions+1
+              index = #instructions+1,
+              isLocal = true
             }
             table.insert(instructions, forInit)
             
             local forLimit = {
               op="assign",
-              vars = {"$limit"},
+              vars = {{type="var", value="$limit"}},
               infix = {eval=limit},
               line = token.line,
-              index = #instructions+1
+              index = #instructions+1,
+              isLocal = true
             }
             table.insert(instructions, forLimit)
             
             local forIncrement = {
               op="assign",
-              vars = {"$increment"},
+              vars = {{type="var", value="$increment"}},
               infix = {
-                eval = increment or {type="num",value=1},
+                eval = increment or {{type="num",value=1}},
               },
               line = token.line,
               index = #instructions+1,
+              isLocal = true
             }
             table.insert(instructions, forIncrement)
             
@@ -897,7 +946,7 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
               skip = false,
               line = token.line,
               index = #instructions + 1,
-              var = token.value
+              var = nextToken.value[1]
             }
 
             table.insert( instructions, forOp )
@@ -987,9 +1036,9 @@ function Loader._generatePostfix( infix )
             end
           else
             if (Loader._ops[opStack[#opStack].value] > priority) 
-            or (Loader._rightAssociate[token.value] and Loader._ops[opStack[#opStack]] == priority) then
+            or (Loader._rightAssociate[token.value] and Loader._ops[opStack[#opStack].value] == priority) then
               table.insert(out, table.remove(opStack))
-              while #opStack > 0 and (Loader._ops[opStack[#opStack]] > priority)  do
+              while #opStack > 0 and (Loader._ops[opStack[#opStack].value] > priority)  do
                 table.insert(out, table.remove(opStack))
               end
             end
@@ -1422,20 +1471,12 @@ function Loader.execute( instructions, env, ... )
         local loop = inst.start
 
         if loop and loop.op == "for" then --initalized with an assign, incremented on end
-        Async.insertTasks({
-          label = "for limit results",
-          func = function( stack )
-            local value = (stack[1] or Loader.constants["nil"]).value
-            top.ifState = value
-            if not value then
-              index = inst.skip.index
-            end
-          end
-        })
-
-        --inserts task
-        Loader.eval( inst.postfix.condition, top, inst.line )
-        return --continue
+          local var = top:get(inst.start.var.value).value
+          local inc = top:get"$increment".value
+          top:set(true, inst.start.var.value, Loader._val(var + inc))
+      
+          index = inst.start.index
+          return --continue
 
         elseif loop and loop.op == "for-in" then
         elseif loop and loop.op == "while" then
@@ -1465,11 +1506,14 @@ function Loader.execute( instructions, env, ... )
         top.isLoop = true
         top.stop = inst.skip
 
-        if (top:get"$increment" > 0 and top:get"$limit" <= top:get(inst.var))
-        or (top:get"$increment" < 0 and top:get"$limit" >= top:get(inst.var)) then
+        local inc = top:get"$increment".value
+        local limit = top:get"$limit".value
+        local var = top:get(inst.var.value).value
+        if (inc > 0 and limit >= var)
+        or (inc < 0 and limit <= var) then
           index = index + 1
         else
-          index = inst.skip+1 --past end to exit loop
+          index = inst.skip.index+1 --past end to exit loop
         end
         return --continue
 
