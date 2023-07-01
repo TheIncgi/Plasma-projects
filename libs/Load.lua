@@ -501,6 +501,25 @@ function Loader.cleanupTokens( tokens )
   )
 end
 
+function Loader._readTable( tokens, start )
+  local tableInstructions = {}
+  if tokens[start].value ~= "{" then
+    error("Table parsing must start on '{' token")
+  end
+  local index = start+1
+
+  local key, value
+
+  return Async.insertTasks(
+    Async.whileLoop("_readTable", function() return index <= #tokens end, function()
+      local token = tokens[index]
+
+
+      index = index + 1
+    end)
+  )
+end
+
 --returning next unhandled token
 function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma )
   local index = start
@@ -541,7 +560,17 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma 
           if not startPermitted[token.value] and (not allowingDot) then
             error("Expected a value, found op "..token.value.." instead on line "..token.line)
           end
-          if token.value == "{" or token.value == "(" or token.value=="[" then
+          if token.value == "{" then
+            Async.insertTasks({
+              label = "_findExpressionEnd-parseTable-result",
+              function( nextToken )
+                index = nextToken
+                return true --task complete
+              end
+            })
+            Loader._readTable( tokens, index )
+            return --continue
+          elseif token.value == "(" or token.value=="[" then
             table.insert(brackets, token)
           end
           --requiresValue = true again
