@@ -502,26 +502,58 @@ function Loader.cleanupTokens( tokens )
 end
 
 function Loader._readTable( tokens, start )
-  local tableInstructions = {}
+  local tableInit = {}
   if tokens[start].value ~= "{" then
     error("Table parsing must start on '{' token")
   end
   local index = start+1
-
+  local N = 0
   local key, value
 
   return Async.insertTasks(
     Async.whileLoop("_readTable", function() return index <= #tokens end, function()
       local token = tokens[index]
+      local line = token.line
 
+      if token.value == "}" then
+        return {tableInit, index + 1}
+      end
 
-      index = index + 1
+      if token.value == "[" then
+        local infix, nextIndex = Loader._collectExpression( tokens, index+1, false, token.line, true )
+        key = infix
+        if tokens[nextIndex].value ~= "=" then
+          error("'=' expected in table near line "..token.line)
+        end
+        index = nextIndex +1
+      elseif token.type == "var" and tokens[index+1] and tokens[index+1].value == "=" then
+        key = {{type="str", value = token.value}}
+        index = index + 2
+      else
+        N = N + 1
+        key = {Loader._val(N)}
+      end
+
+      local infix, nextToken = Loader._collectExpression(tokens, index, false, tokens[index].line, true, true)
+      local value = infix
+      table.insert(tableInit, {line = line, infix = {key=key,value=value}})
+
+      token = tokens[nextToken]
+
+      if token.value ~= "," and token.value ~= "}" then
+        error("Expected `,` or `} near line "..token.line.." for table starting at line "..line)
+      end
+      if token.value == "," then
+        index = nextToken + 1
+      else
+        index = nextToken
+      end
     end)
   )
 end
 
 --returning next unhandled token
-function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma )
+function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma, tableMode )
   local index = start
   local brackets = {}
   local requiresValue = true
@@ -551,7 +583,8 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma 
       end
 
       if token.type == "op" and token.value=="=" and not allowAssignment then
-        error("Assignment can not be use in expression on line "..token.line)
+        return {index}
+        --error("Assignment can not be use in expression on line "..token.line)
       end
       
       if requiresValue then
@@ -563,7 +596,9 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma 
           if token.value == "{" then
             Async.insertTasks({
               label = "_findExpressionEnd-parseTable-result",
-              function( nextToken )
+              func = function( tableInit, nextToken )
+                token.init = tableInit
+                token.skip = nextToken
                 index = nextToken
                 return true --task complete
               end
@@ -599,6 +634,9 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma 
       elseif token.type == "op" then
         if token.value == ")" or token.value == "}" or token.value == "]" then
           local topBracket = table.remove(brackets)
+          if tableMode and token.value == "}" and not topBracket then
+            return {index}
+          end
           if token.value ~= Loader._closePar(topBracket.value) then
             error("Mis-matched brackets opening with "..topBracket.value.." on line "..topBracket.line.." and "..token.value.." on line"..token.line)
           end
@@ -657,8 +695,8 @@ function Loader._makeEvaluation( tokens, start, stop )
 
 end
 
-function Loader._collectExpression( tokens, index, allowAssignment, line, ignoreComma )
-  local endTokenPos = Async.sync(Loader._findExpressionEnd(tokens, index, allowAssignment, ignoreComma)) --todo possible improvment on async
+function Loader._collectExpression( tokens, index, allowAssignment, line, ignoreComma, tableMode )
+  local endTokenPos = Async.sync(Loader._findExpressionEnd(tokens, index, allowAssignment, ignoreComma, tableMode)) --todo possible improvment on async
   if not endTokenPos then
     error("Missing expression for assignment on line "..line)
   end
