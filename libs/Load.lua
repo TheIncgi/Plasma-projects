@@ -287,6 +287,7 @@ end
 
 function Loader._chunkType( text )
 	--if not text then return false end
+  local longQuote = text:match"^%[=*%["
   if text:sub(1,2) == "--" then
     local block = text:sub(3):match"%[=*%["  
     local commentEnd = block and block:gsub("%[","]") or "\n"
@@ -297,6 +298,15 @@ function Loader._chunkType( text )
     else
       return "incomplete_comment"
     end
+  elseif text == "[=" or longQuote then
+    if longQuote then
+      local endQuote = longQuote:gsub("%[","]")
+      if text:sub(-#longQuote) == endQuote then
+        return "str"
+      end
+      return not text:find(endQuote,1,true) and "unfinished_str" or false
+    end
+    return "unfinished_str"
 	elseif text:match"[ \t\n\r]" and text~="\n" and not text:match"^['\"]" then
 		return false
 	elseif text=="\n" then
@@ -486,8 +496,10 @@ function Loader.cleanupTokens( tokens )
         if token:match([=[^["']]=]) then
           infoToken.value = token:sub(2,-2)
         else
-          local n = #token:match"^[=*[" + 1
-          infoToken.value = token:sub(n, -n)
+          local n = #token:match"^%[=*%[" + 1
+          local newLine = token:sub(n,n) == "\n" and 1 or 0
+          line = line + #token:gsub("[^\n]","")
+          infoToken.value = token:sub(n + newLine, -n)
         end
         --as call
         if prior and prior.type == "var" then
@@ -1868,6 +1880,12 @@ local testCode = [===[
   print"inline set"
 
   inlineFunc("inline works")
+
+  print[==[
+    Multiline
+    string!
+  ]==]
+
   --print"comments"
   --[[
     print"block comments
