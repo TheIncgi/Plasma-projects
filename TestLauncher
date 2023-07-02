@@ -6,7 +6,8 @@ package.path = package.path..";.\\tests\\loadTests\\?.lua"
 HIDE_PASS = false
 
 local tests = {
-  "LoadTest"
+  "LoadTest",
+  "FunctionTests"
 }
 
 local totalPassed = 0

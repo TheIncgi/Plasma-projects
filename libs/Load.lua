@@ -314,7 +314,12 @@ function Loader._chunkType( text )
 	-- elseif text:match"//.+" then 
 	-- 	return false
   end
-
+  if text:sub(1,3) == "..." then
+    if text == "..." then 
+      return "var"
+    end
+    return false
+  end
 	for _, name in ipairs{ "op","num","var","str" } do
 		local group = Loader._patterns[ name ]
 		local txt =  text
@@ -474,6 +479,9 @@ function Loader.cleanupTokens( tokens )
             or (prior.type == "op" and (prior.value == ")" or prior.value == "]" or prior.value == "}"))
           ) then
             infoToken.call = true  
+            if tokens[index+1] == ")" or tokens[index+1] == "]" or tokens[index+1] == "}" then
+              infoToken.empty = true
+            end
           elseif prior and prior.type == "keyword" and prior.value == "function" then
             prior.inlineFunc = true
           end
@@ -675,7 +683,11 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma,
         elseif token.call then
           if token.value == "{" or token.value == "(" or token.value=="[" then
             table.insert(brackets, token)
-            requiresValue = true
+            if token.empty then
+              requiresValue = false
+            else
+              requiresValue = true
+            end
           end
         elseif startPermitted[token.value] then
           error("Unexpected token "..token.value.." in expression on line "..token.line)
@@ -1340,7 +1352,7 @@ function Loader.eval( postfix, scope, line )
         if token.call then
           local args =  pop(stack, scope, line, true)
           local func
-          if args.value ~= "function" then
+          if (not args.instructions) and (not args.env) and (not token.empty) then
             func = pop(stack, scope, line)
           else
             func = args
