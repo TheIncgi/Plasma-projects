@@ -1138,11 +1138,13 @@ function Loader._generatePostfix( infix )
               table.insert( out, par )
             end
           else
-            if (Loader._ops[opStack[#opStack].value] > priority) 
-            or (Loader._rightAssociate[token.value] and Loader._ops[opStack[#opStack].value] == priority) then
-              table.insert(out, table.remove(opStack))
-              while #opStack > 0 and (Loader._ops[opStack[#opStack].value] > priority)  do
+            if token.value ~= "(" and token.value ~= "[" and token.value ~="{" then
+              if (Loader._ops[opStack[#opStack].value] > priority) 
+              or (Loader._rightAssociate[token.value] and Loader._ops[opStack[#opStack].value] == priority) then
                 table.insert(out, table.remove(opStack))
+                while #opStack > 0 and (Loader._ops[opStack[#opStack].value] > priority)  do
+                  table.insert(out, table.remove(opStack))
+                end
               end
             end
             table.insert(opStack, token)
@@ -1481,7 +1483,9 @@ function Scope:addGlobals()
   self:setNativeFunc( "ipairs", ipairs )
   self:setNativeFunc( "pairs", pairs )
   self:setNativeFunc( "next", next )
-  -- scope:setNativeFunc( "",  )
+  self:setNativeFunc( "tonumber", tonumber )
+  self:setNativeFunc( "tostring", tostring )
+  -- self:setNativeFunc( "",  )
 end
 
 --index may be nil
@@ -1619,6 +1623,8 @@ function Loader.execute( instructions, env, ... )
           return --continue
 
         elseif loop and loop.op == "for-in" then
+          index = inst.start.index
+          return --continue
         elseif loop and loop.op == "while" then
           index = inst.start.index --loop false -> end.index+1
           return --continue
@@ -1661,9 +1667,10 @@ function Loader.execute( instructions, env, ... )
       elseif inst.op == "for-in-init" then
         Async.insertTasks({
           label = "for-in-init-result",
-          func = function( varargs )
-            top.generator = varargs.value
-            top.previousFor = Loader._varargs(select(2, varargs.varargs))
+          func = function( stack )
+            top.generator = stack[1]
+            top.previousFor = Loader._varargs( table.unpack(stack,2) )
+            return true --task complete
           end
         })
         Loader.eval( inst.postfix.eval, top, inst.line )
@@ -1672,15 +1679,16 @@ function Loader.execute( instructions, env, ... )
         top.start = inst
         top.stop = inst.skip
 
-        local gen = top.generator.value
+        local gen = top.generator
         if (not gen) or gen.type ~= "function" then
           error("generator must be function for `for-in` loop on line"..inst.line)
         end
 
-        Loader.callFunc( gen, top.previousFor, function ( genVals )
-          top.previousFor = genVals
-          for i=1, #inst.vars do
-            top:set(true, inst.vars[i], genVals.varargs[i])
+        Loader.callFunc( gen, Loader._varargs(table.unpack(top.previousFor.varargs)), function ( genVals )
+          -- top.previousFor = genVals
+          for i=1, #inst.vars.value do
+            top.previousFor.varargs[i+1]  = genVals.varargs[i] 
+            top:set(true, inst.vars.value[i].value, genVals.varargs[i])
           end
         end)
 
@@ -1726,12 +1734,12 @@ local testCode = [===[
   local t = {1,2,3}
   print( "Len t:" .. #t )
   for k, v in ipairs( t ) do
-    print("  ["..k.."] = "..v)
+    print("  ["..tostring(k).."] = "..tostring(v))
   end
 
   do
     local tmp = 10
-    print("tmp in scope: "..tmp)
+    print("tmp in scope: "..tostring(tmp))
   end
   print("tmp out of scope: "..tostring(tmp))
 
