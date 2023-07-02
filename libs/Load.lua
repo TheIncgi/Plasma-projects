@@ -181,6 +181,13 @@ local RETURN = Async.RETURN
 --=====================================================================================
 
 Loader = {}
+Scope = {}
+
+--[table][raw key] -> wrapped key
+Loader.tableIndexes = {}
+setmetatable( Loader.tableIndexes, {
+  __mode = "k"
+})
 
 Loader.keywords = {
   -- ["and"]      = true,
@@ -475,6 +482,14 @@ function Loader.cleanupTokens( tokens )
           infoToken.blockLevel = blockLevel
         end
       elseif tokenType=="str" then
+        --remove quotes
+        if token:match([=[^["']]=]) then
+          infoToken.value = token:sub(2,-2)
+        else
+          local n = #token:match"^[=*[" + 1
+          infoToken.value = token:sub(n, -n)
+        end
+        --as call
         if prior and prior.type == "var" then
           tokens[index] = infoToken
           table.insert( tokens, index, {
@@ -622,7 +637,10 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma,
                 token.args = args
                 token.start = index
                 token.skip = nextIndex
+                token.op = "function"
+                token.value = nil
                 index = nextIndex
+                Loader.batchPostfix(token.instructions)
                 return true
               end
             }
@@ -822,8 +840,13 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
 
         --instructions with expresssions
         elseif token.value == "do" then
-          local inst = {
+          table.insert(instructions, {
             op = "createScope",
+            line = token.line,
+            index = #instructions+1
+          })
+          local inst = {
+            op = "do",
             line = token.line,
             index = #instructions+1,
             skip = false,
@@ -943,7 +966,9 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
             local initGenerator = {
               op="for-in-init",
               --vars = {"$generator"}, --invalid var name as private variable
-              infix = {eval = generatorInit}
+              infix = {eval = generatorInit},
+              line = token.line,
+              index = #instructions + 1
             }
             table.insert(instructions, initGenerator)
 
@@ -1227,20 +1252,25 @@ function Loader.callFunc( func, args, callback )
   local fArgs = args.varargs or {args}
   if func.value then
     local result
-    for i=1, #fArgs do
-      fArgs[i] = fArgs[i].value
+    if func.unpacker then
+      func.unpacker( fArgs )
     end
     --call
-    local results = {func.value( table.unpack(fArgs) )}
-    for i=1, #results do
-      results[i] = Loader._val(results[i])
+    local results
+    if #fArgs > 0 then
+      results = {func.value( table.unpack(fArgs) )}
+    else
+      results = {func.value()}
+    end
+    if func.packer then
+      func.packer( results )
     end
     result = Loader._varargs(table.unpack(results))
     callback( result )
     
   else
     for i=1,#func.args do
-      func.env:set(true,func.args[i], table.remove(args.varargs) or Loader.constants["nil"])
+      func.env:set(true,func.args[i], fArgs[i] or Loader.constants["nil"])
     end
     Async.insertTasks({
       label = "callFunc-callback-return",
@@ -1256,12 +1286,18 @@ end
 function Loader._initalizeTable( tableToken, scope, line )
   local newTable = {}
   local var = Loader._val(newTable)
+  local indexer = {}
+  Loader.tableIndexes[newTable] = indexer
+  setmetatable(indexer, {
+    __mode = "v"
+  })
   local key
   return Async.insertTasks(Async.forEach("_initalizeTable", function(i, entry)
     Async.insertTasks({
       label = "_initalizeTable-value-result",
       func = function(val)
         newTable[key] = val[1]
+
         return true
       end
     })
@@ -1270,7 +1306,8 @@ function Loader._initalizeTable( tableToken, scope, line )
     Async.insertTasks({
       label = "_initalizeTable-value-result",
       func = function(tKey)
-        key = tKey[1].value
+        key = tKey[1]
+        indexer[key.value] = key
         return true
       end
     })
@@ -1304,8 +1341,13 @@ function Loader.eval( postfix, scope, line )
 
         elseif token.value == "." then --TODO use b.name not [b]
           local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
-          local v = a[b]
-          table.insert(stack, val(a[b]))
+          local indexer = Loader.tableIndexes[a]
+          if not indexer then
+            table.insert(stack, Loader.constants["nil"])
+          else
+            local k = indexer[b]
+            table.insert(stack, val(a[k]))
+          end
 
         elseif token.value == "not" then
           local a = pop(stack, scope, line).value
@@ -1401,6 +1443,17 @@ function Loader.eval( postfix, scope, line )
           end
         })
         Loader._initalizeTable( token )
+      elseif token.type == "keyword" and token.op == "function" then
+          local locals = scope:captureLocals()
+          local fenv = Scope:new("fenv: "..token.name, token.line, scope, index, locals)
+          local fval = {
+            env = fenv,
+            instructions = token.instructions,
+            line = token.line,
+            args = token.args,
+            type = "function"
+        }
+        table.insert(stack, fval)
       else
         table.insert(stack, token)
       end
@@ -1408,7 +1461,7 @@ function Loader.eval( postfix, scope, line )
     {
       label = "eval-expand-varargs",
       func = function()
-        if stack[#stack].varargs then
+        if #stack > 0 and stack[#stack].varargs then
           local varargs = table.remove(stack).varargs
           for i=1, #stack-1 do
             stack[i].varargs = nil
@@ -1423,7 +1476,19 @@ function Loader.eval( postfix, scope, line )
   )
 end
 
-local Scope = {}
+function Loader.PACKER( results )
+  for i=1, #results do
+    results[i] = Loader._val(results[i])
+  end
+end
+
+function Loader.UNPACKER( fArgs )
+  for i=1, #fArgs do
+    fArgs[i] = fArgs[i].value
+  end
+end
+
+
 function Scope:new(name, line, parent, index, env)
   local obj = {
     env = env or {},
@@ -1446,14 +1511,17 @@ function Scope:set(isLocal, name, value)
   if isLocal or self.env[name] or not self.parent then
     self.env[name] = value
   else
-    self.parent:set(name, value)
+    self.parent:set(isLocal, name, value)
   end
 end
 
-function Scope:setNativeFunc( name, func )
+function Scope:setNativeFunc( name, func, unpacker, packer )
   self:set(false, name, {
     type = "function",
-    value = func
+    unpacker = unpacker ~= false and (unpacker or Loader.UNPACKER) or false,
+    packer = packer ~= false and (packer or Loader.PACKER) or false,
+    value = func,
+    name = name
   })
 end
 
@@ -1479,12 +1547,31 @@ function Scope:captureLocals(fenv)
 end
 
 function Scope:addGlobals()
-  self:setNativeFunc( "print", print )
-  self:setNativeFunc( "ipairs", ipairs )
-  self:setNativeFunc( "pairs", pairs )
-  self:setNativeFunc( "next", next )
-  self:setNativeFunc( "tonumber", tonumber )
-  self:setNativeFunc( "tostring", tostring )
+  self:setNativeFunc( "next",     next )
+  self:setNativeFunc( "print",    print )
+  self:setNativeFunc( "tonumber", function( x )
+    return tonumber( x )
+  end )
+  --tostring(table.unpack{nil}) is an error
+  --tostring( nil ) is not...
+  self:setNativeFunc( "tostring", function( x )
+    return tostring( x )
+  end )
+
+  self:setNativeFunc( "ipairs",   function(tbl)
+    local indexer = Loader.tableIndexes[tbl.value]
+    local gen, _, start = ipairs(indexer)
+    local wrapGen = Loader._val(function(tbl, index, ...)
+      local nextIndex, nextWrappedIndex = gen( indexer, index )
+      return nextWrappedIndex, tbl[nextWrappedIndex]
+    end)
+    wrapGen.unpacker = Loader.UNPACKER
+    return wrapGen, tbl, Loader._val(start)
+  end, false, false )
+
+  self:setNativeFunc( "pairs",    pairs, function( fArgs )
+    fArgs[1] = fArgs[1].value
+  end, false )
   -- self:setNativeFunc( "",  )
 end
 
@@ -1517,7 +1604,7 @@ function Loader.execute( instructions, env, ... )
     Async.whileLoop("exec", function () return instructions[index] end, function ()
       local inst = instructions[index]
       local top = callStack[#callStack]
-
+      -- print("                       DEBUG: "..inst.line..": "..inst.op.."["..#callStack.."]")
       if inst.op == "assign" then
         -- local instruction = {
         --   op = "assign",
@@ -1530,7 +1617,7 @@ function Loader.execute( instructions, env, ... )
         Async.insertTasks({
           label = "assignment eval results",
           func = function( stack )
-            local target = inst.isLocal and callStack[#callStack] or callStack[1]
+            local target = top
             for i=1, #inst.vars do
               target:set(inst.isLocal, inst.vars[i].value, stack[i] or Loader.constants["nil"] )
             end
@@ -1557,7 +1644,7 @@ function Loader.execute( instructions, env, ... )
         return true --exit, return values from task passed
       elseif inst.op == "function" then --capture locals & add to env
         local locals = callStack[#callStack]:captureLocals()
-        local fenv = Scope:new("fenv: "..inst.name, inst.line, callStack[1], index, locals)
+        local fenv = Scope:new("fenv: "..inst.name, inst.line, top, index, locals)
         local fval = {
           env = fenv,
           instructions = inst.instructions,
@@ -1686,18 +1773,42 @@ function Loader.execute( instructions, env, ... )
 
         Loader.callFunc( gen, Loader._varargs(table.unpack(top.previousFor.varargs)), function ( genVals )
           -- top.previousFor = genVals
+          if #genVals.varargs == 0 then
+            index = inst.skip.index + 1
+            return --just a regular callback, task done
+          else
+            index = index + 1
+          end
           for i=1, #inst.vars.value do
             top.previousFor.varargs[i+1]  = genVals.varargs[i] 
             top:set(true, inst.vars.value[i].value, genVals.varargs[i])
           end
         end)
-
+        return --continue
       elseif inst.op == "until" then
+        Async.insertTasks({
+          label = "until condition results",
+          func = function( stack )
+            local value = (stack[1] or Loader.constants["nil"]).value
+            if value then --exit on true
+              index = index + 1
+            else
+              index = inst.start.index
+            end
+            return true --task complete
+          end
+        })
+
+        --inserts task
+        Loader.eval( inst.postfix.condition, top, inst.line )
+        return --continue
         
       elseif inst.op == "createScope" then
         Loader._appendCallEnv( callStack, "block start", inst.line, inst.index )
       elseif inst.op == "deleteScope" then
         table.remove(callStack)
+      elseif inst.op == "do" then
+        --nothing, marker
       else
         error("unhandled instruction '"..inst.op.."'")
       end
@@ -1748,10 +1859,13 @@ local testCode = [===[
     print( "r: "..r )
     r = r + 1
   until r > 6
+  print"end of until"
 
   local inlineFunc = function(x)
     print( x )
   end
+
+  print"inline set"
 
   inlineFunc("inline works")
   --print"comments"
