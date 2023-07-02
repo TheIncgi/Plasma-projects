@@ -11,6 +11,9 @@
             "program": {
                 "lua": "lua52.exe",
                 "file": "${file}"
+            },
+            "env": {
+                "UNIT_TEST_LIB_PATH": "C:/Users/TheIncgi/Documents/GitHub/That-s-No-Moon-"
             }
         },
         {
