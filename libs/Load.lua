@@ -600,6 +600,7 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma,
                 token.init = tableInit
                 token.skip = nextToken
                 index = nextToken
+                requiresValue = false --table is value
                 return true --task complete
               end
             })
@@ -703,6 +704,8 @@ function Loader._collectExpression( tokens, index, allowAssignment, line, ignore
   local infix = {}
   for i=index, endTokenPos-1 do
     table.insert(infix, tokens[i])
+    tokens[i].globalIndex = i
+    tokens[i].localIndex = #infix
   end
 
   return infix, endTokenPos
@@ -1074,6 +1077,30 @@ end
 -- foo ( a + b )
 --foo a b + call
 
+function Loader._generateTablePostfix( tableToken )
+  return Async.insertTasks(Async.forEach("_generateTablePostfix", function(i, entry)
+    Async.insertTasks({
+      label = "_generateTablePostfix-key-results",
+      func = function(postfix)
+        entry.postfix = entry.postfix or {}
+        entry.postfix.key = postfix
+        return true
+      end
+    })
+    Loader._generatePostfix( entry.infix.key )
+
+    Async.insertTasks({
+      label = "_generateTablePostfix-value-results",
+      func = function(postfix)
+        entry.postfix = entry.postfix or {}
+        entry.postfix.value = postfix
+        return true
+      end
+    })
+    Loader._generatePostfix( entry.infix.value )
+    
+  end, ipairs, tableToken.init))
+end
 
 function Loader._generatePostfix( infix )
   local out, opStack = {}, {} --opstack contains ops in ascending order only (except ())
@@ -1082,8 +1109,17 @@ function Loader._generatePostfix( infix )
     Async.insertTasks(
       Async.whileLoop("_generatePostfix",function() return index <= #infix end, function()
         local token = infix[index]
+        
+
         if token.type == "op" then
           local priority = Loader._ops[token.value] --higher happens first
+          if token.value == "{" and token.init then
+            index = token.skip - token.globalIndex + token.localIndex
+            Loader._generateTablePostfix( token )
+            token.type = "val"
+            table.insert( out, token ) --treated as value
+            return --continue
+          end
           if #opStack == 0 then
             table.insert(opStack, token)
           elseif token.value == ")" or token.value == "]" or token.value == "}" then
@@ -1215,7 +1251,35 @@ function Loader.callFunc( func, args, callback )
   end
 end
 
+function Loader._initalizeTable( tableToken, scope, line )
+  local newTable = {}
+  local var = Loader._val(newTable)
+  local key
+  return Async.insertTasks(Async.forEach("_initalizeTable", function(i, entry)
+    Async.insertTasks({
+      label = "_initalizeTable-value-result",
+      func = function(val)
+        newTable[key] = val[1]
+        return true
+      end
+    })
+    Loader.eval( entry.postfix.value, scope, line )
+
+    Async.insertTasks({
+      label = "_initalizeTable-value-result",
+      func = function(tKey)
+        key = tKey[1].value
+        return true
+      end
+    })
+    Loader.eval( entry.postfix.value, scope, line )
+
+  end, ipairs, tableToken.init), 
+  Async.RETURN("_initalizeTable", var))
+end
+
 function Loader.eval( postfix, scope, line )
+  if not postfix then error("expected postfix",2) end
   local stack = {}
   local pop = Loader._popVal
   local val = Loader._val
@@ -1326,6 +1390,15 @@ function Loader.eval( postfix, scope, line )
       elseif token.value == "..." then --not op
         local a = Loader._tokenValue(token, scope) --{type="varargs", weak=true, value=, varargs=}
         table.insert( a )
+      elseif token.value == "{" and token.init then
+        Async.insertTasks({
+          label = "eval-table-init-results",
+          func = function( var )
+            table.insert(stack, var)
+            return true --task complete
+          end
+        })
+        Loader._initalizeTable( token )
       else
         table.insert(stack, token)
       end
@@ -1593,7 +1666,7 @@ function Loader.execute( instructions, env, ... )
             top.previousFor = Loader._varargs(select(2, varargs.varargs))
           end
         })
-        Loader.eval( inst.forInit, top, inst.line )
+        Loader.eval( inst.postfix.eval, top, inst.line )
       elseif inst.op == "for-in" then
         top.isLoop = true
         top.start = inst
