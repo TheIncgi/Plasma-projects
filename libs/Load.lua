@@ -1834,75 +1834,83 @@ end
 --===================================================================================
 --===================================================================================
 --===================================================================================
-local testCode = [===[
-  function foo(x, y)
-    return x+y
-  end
+local function test()
+  local testCode = [===[
+    function foo(x, y)
+      return x+y
+    end
 
-  local t = 15 / -2
-  local z,e = foo(10, 20) or 100, 33
-  print(z)
-  if z%10 ==0 then
-    print("%10!")
-  elseif z%5==0 then
-    print"foo"
-  else
-    print(foo(3,4)-1)
-  end
+    local t = 15 / -2
+    local z,e = foo(10, 20) or 100, 33
+    print(z)
+    if z%10 ==0 then
+      print("%10!")
+    elseif z%5==0 then
+      print"foo"
+    else
+      print(foo(3,4)-1)
+    end
 
-  for i=1,3 do
-    print( i )
-  end
+    for i=1,3 do
+      print( i )
+    end
 
-  local t = {1,2,3}
-  print( "Len t:" .. #t )
-  for k, v in ipairs( t ) do
-    print("  ["..tostring(k).."] = "..tostring(v))
-  end
+    local t = {1,2,3}
+    print( "Len t:" .. #t )
+    for k, v in ipairs( t ) do
+      print("  ["..tostring(k).."] = "..tostring(v))
+    end
 
-  do
-    local tmp = 10
-    print("tmp in scope: "..tostring(tmp))
-  end
-  print("tmp out of scope: "..tostring(tmp))
+    do
+      local tmp = 10
+      print("tmp in scope: "..tostring(tmp))
+    end
+    print("tmp out of scope: "..tostring(tmp))
 
-  local r = 1
-  do
-    print( "r: "..r )
-    r = r + 1
-  until r > 6
-  print"end of until"
+    local r = 1
+    do
+      print( "r: "..r )
+      r = r + 1
+    until r > 6
+    print"end of until"
 
-  local inlineFunc = function(x)
-    print( x )
-  end
+    local inlineFunc = function(x)
+      print( x )
+    end
 
-  print"inline set"
+    print"inline set"
 
-  inlineFunc("inline works")
+    inlineFunc("inline works")
 
-  print[==[
-    Multiline
-    string!
-  ]==]
+    print[==[
+      Multiline
+      string!
+    ]==]
 
-  --print"comments"
-  --[[
-    print"block comments
-  ]]
-  --[==[
-    print"long block comments"
-  ]==]
+    --print"comments"
+    --[[
+      print"block comments
+    ]]
+    --[==[
+      print"long block comments"
+    ]==]
 
+    print"done"
+  ]===]
+  --TODO: local a,b,c declaring
+  --TODO: local function
+
+  local rawTokens = sync( Loader.tokenize(testCode) )
+  local tokens = sync( Loader.cleanupTokens( rawTokens ) )
+  local instructions = sync( Loader.buildInstructions(tokens)  )
+  sync( Loader.batchPostfix(instructions) )
+  sync( Loader.execute( instructions ) )
+  -- local tokens = Loader.tokenize(testCode)
   print"done"
-]===]
---TODO: local a,b,c declaring
---TODO: local function
-
-local rawTokens = sync( Loader.tokenize(testCode) )
-local tokens = sync( Loader.cleanupTokens( rawTokens ) )
-local instructions = sync( Loader.buildInstructions(tokens)  )
-sync( Loader.batchPostfix(instructions) )
-sync( Loader.execute( instructions ) )
--- local tokens = Loader.tokenize(testCode)
-print"done"
+end
+-- test()
+return {
+  Loader = Loader,
+  Async = Async,
+  Scope = Scope
+}
