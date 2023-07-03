@@ -1364,77 +1364,145 @@ function Loader.eval( postfix, scope, line )
           end)
 
         elseif token.value == "." then --TODO use b.name not [b]
-          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
-          local indexer = Loader.tableIndexes[a]
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type ~= "table" then
+            error("attempt to index "..a.type.." on line "..token.line)
+          end
+          local indexer = Loader.tableIndexes[a.value]
           if not indexer then
-            table.insert(stack, Loader.constants["nil"])
+            error("internal error: missing table index from table on line "..token)
           else
-            local k = indexer[b]
-            table.insert(stack, val(a[k]))
+            local k = indexer[b.value]
+            table.insert(stack, val(a[b] or a[k]))
           end
 
         elseif token.value == "not" then
-          local a = pop(stack, scope, line).value
-          table.insert(stack, val(not a))
+          local a = pop(stack, scope, line)
+          if a.type == "function" then
+            table.insert( stack,  Loader.constants["false"] )
+            return --continue
+          end
+          table.insert(stack, val(not a.value))
 
         elseif token.value == "#" then
-          local a = pop(stack, scope, line).value
-          table.insert(stack, val(#a))
+          local a = pop(stack, scope, line)
+          if a.value == "function" then
+            error("attempt to get the length of a function on line "..token.line)
+          end
+          table.insert(stack, val(#a.value))
 
         elseif token.value == "^" then
-          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
-          table.insert(stack, val(a^b))
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" or b.type == "function" then
+            error("attempt to preform exponent opperation with "..a.type.." and "..b.type.." on line "..token.line)
+          end
+          table.insert(stack, val(a.value^b.value))
 
         elseif token.value == "*" then
-          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
-          table.insert(stack, val(a*b))
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" or b.type == "function" then
+            error("attempt to multiply "..a.type.." with "..b.type.." on line "..token.line)
+          end
+          table.insert(stack, val(a.value*b.value))
 
         elseif token.value == "/" then
-          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
-          table.insert(stack, val(a/b))
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" or b.type == "function" then
+            error("attempt to divide "..a.type.." with "..b.type.." on line "..token.line)
+          end
+          table.insert(stack, val(a.value/b.value))
 
         elseif token.value == "+" then
-          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
-          table.insert(stack, val(a+b))
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" or b.type == "function" then
+            error("attempt to add "..a.type.." with "..b.type.." on line "..token.line)
+          end
+          table.insert(stack, val(a.value+b.value))
 
         elseif token.value == "-" then
-          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
-          table.insert(stack, val(a-b))
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" or b.type == "function" then
+            error("attempt to subtract "..a.type.." from "..b.type.." on line "..token.line)
+          end
+          table.insert(stack, val(a.value-b.value))
 
         elseif token.value == "==" then
-          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
-          table.insert(stack, val(a==b))
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" and b.type == "function" then
+            table.insert(stack, val(a == b))
+            return --continue
+          end
+          table.insert(stack, val(a.value == b.value))
 
         elseif token.value == "~=" then
-          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
-          table.insert(stack, val(a~=b))
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" and b.type == "function" then
+            table.insert(stack, val(a ~= b))
+            return --continue
+          elseif a.type == "function" or b.type == "function" then --xor
+            table.insert(stack, Loaders.constants["false"])
+            return --continue
+          end
+          table.insert(stack, val(a.value ~= b.value))
 
         elseif token.value == "<=" then
-          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
-          table.insert(stack, val(a<=b))
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" or b.type == "function" then
+            error("attempt to compare "..a.type.." with "..b.type.." using <= on line "..token.line)
+          end
+          table.insert(stack, val(a.value<=b.value))
 
         elseif token.value == ">=" then
-          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
-          table.insert(stack, val(a>=b))
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" or b.type == "function" then
+            error("attempt to compare "..a.type.." with "..b.type.." using >= on line "..token.line)
+          end
+          table.insert(stack, val(a.value>=b.value))
 
         elseif token.value == "<" then
-          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
-          table.insert(stack, val(a<b))
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" or b.type == "function" then
+            error("attempt to compare "..a.type.." with "..b.type.." using < on line "..token.line)
+          end
+          table.insert(stack, val(a.value < b.value))
 
         elseif token.value == ">" then
-          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
-          table.insert(stack, val(a>b))
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" or b.type == "function" then
+            error("attempt to compare "..a.type.." with "..b.type.." using > on line "..token.line)
+          end
+          table.insert(stack, val(a.value > b.value))
 
         elseif token.value == "and" then
-          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
-          table.insert(stack, val(a and b))
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" then
+            a = true
+          else
+            a = a.value
+          end
+
+          if a and b.type == "function" then
+            table.insert(stack, b)
+            return --continue
+          end
+          table.insert(stack, val(a and b.value))
 
         elseif token.value == "or" then
-          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
-          table.insert(stack, val(a or b))
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" then
+            table.insert(stack, a)
+            return --continue
+          elseif b.type == "function" then
+            table.insert(stack, b)
+            return --continue
+          end
+          table.insert(stack, val(a.value or b.value))
 
         elseif token.value == ".." then
-          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" or b.type == "function" then
+            error("attempt to concat "..a.type.." with "..b.type.." on line "..token.line)
+          end
           table.insert(stack, val(a .. b))
 
         elseif token.value == "," then
@@ -1449,8 +1517,11 @@ function Loader.eval( postfix, scope, line )
           error"this token should be expanded in a previous step before evaluation"
 
         elseif token.value == "%" then
-          local b, a = pop(stack, scope, line).value, pop(stack, scope, line).value
-          table.insert(stack, val(a % b))
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" or b.type == "function" then
+            error("attempt to preform modulo on "..a.type.." with "..b.type.." on line "..token.line)
+          end
+          table.insert(stack, val(a.value % b.value))
         -- elseif token.value == "" then
         else
           error("Unhandled token "..token.value)
