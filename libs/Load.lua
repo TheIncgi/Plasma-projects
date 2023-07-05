@@ -1641,6 +1641,24 @@ function Scope:captureLocals(fenv)
   return self.parent:captureLocals( fenv )
 end
 
+function Scope:addPlasmaGlobals()
+  self:setNativeFunc( "output",     output )
+  self:setNativeFunc( "trigger",     trigger )
+  self:setNativeFunc( "read_var",     read_var )
+  self:setNativeFunc( "write_var",     write_var )
+end
+
+function Scope:setPlasmaInputs()
+  self:set(false, "V1", V1) -- V1-V8 isn't in _G
+  self:set(false, "V2", V2)
+  self:set(false, "V3", V3)
+  self:set(false, "V4", V4)
+  self:set(false, "V5", V5)
+  self:set(false, "V6", V6)
+  self:set(false, "V7", V7)
+  self:set(false, "V8", V8)
+end
+
 function Scope:addGlobals()
   self:setNativeFunc( "next",     next )
   self:setNativeFunc( "print",    print )
@@ -1915,6 +1933,80 @@ end
 
 --===================================================================================
 --===================================================================================
+--==============================        Plasma        ===============================
+--===================================================================================
+--===================================================================================
+local Plasma = {}
+------------------
+--  interfaces  --
+------------------
+function run()
+  local src = V1
+  if src then
+    Async.insertTasks(
+      {
+        label = "run-tokenize",
+        func = function()
+          Loader.tokenize(src)
+          return true
+        end
+      },{
+        label = "run-tokenize->cleanup",
+        func = function( rawTokens )
+          Loader.cleanupTokens( rawTokens )
+          return true
+        end
+      },{
+        label = "run-cleanup->buildInstructions",
+        func = function( tokens )
+          Loader.buildInstructions(tokens)
+          return true
+        end
+      },{
+        label = "run-buildInstructions->...",
+        func = function(instructions)
+          Async.insertTasks(
+            {
+              label = "run-batchPostfix",
+              func = function()
+                Loader.batchPostfix(instructions)
+                return true
+              end
+            },{
+              label = "run-execute",
+              func = function()
+                Loader.execute(instructions, Plasma.scope)
+                return true
+              end
+            }
+          )
+          return true
+        end
+      }
+    )
+  end
+end
+------------------
+--     main     --
+------------------
+function setup()
+  Plasma.scope = Scope:new("PLASMA",1,nil,1)
+  Plasma.scope:addGlobals()
+  Plasma.scope:addPlasmaGlobals()
+end
+
+function loop()
+  Async.loop()
+end
+
+function is_done()
+  return false
+end
+
+
+--===================================================================================
+--===================================================================================
+--===================================================================================
 --===================================================================================
 --===================================================================================
 local function test()
@@ -1991,6 +2083,9 @@ local function test()
   -- local tokens = Loader.tokenize(testCode)
   print"done"
 end
+
+
+
 -- test()
 return {
   Loader = Loader,
