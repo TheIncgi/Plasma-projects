@@ -149,4 +149,42 @@ do resetLibs()
     
 end
 
+
+-----------------
+--  Table Func --
+-----------------
+do resetLibs()
+  local src = [=[
+    local Lib = require"TheIncgi/Plasma-projects/main/testLibs/TableFunc"
+    Lib.test()
+  ]=]
+  local HelloRequire = require"testLibs/HelloRequire"
+  local env = Env:new()
+  local common = common(env)
+  local Net = LoaderLibs.Net
+  local Async = LoaderLibs.Async
+  local requireProxy = env:proxy("require", require)
+  local path = "TheIncgi/Plasma-projects/main/testLibs/TableFunc"
+  local url = "https://raw.githubusercontent.com/"..path..".lua"
+
+  requireProxy{ path }.exact( [=[
+    local Foo = {}
+    function Foo.test()
+      print"ok"
+    end
+    return Foo
+  ]=] )
+  
+  --expect print call with msg
+  common.printProxy{ HelloRequire.msg }.exact()
+    
+    --test code
+    local test = tester:add("requires code", env, function()
+      local scope = newScope()
+      scope:setNativeFunc("require", require)
+      run( src, scope )
+    end)
+    
+end
+
 return tester
