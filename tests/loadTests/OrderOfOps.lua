@@ -12,8 +12,10 @@ local tester = Tester:new()
 -----------------------------------------------------------------
 
 local tests = {
+  ["1234"] = 1234,
+  ["3 * 4 + 5 * 6"] = 42,
   ["5 * 9 - (-3+1)^2"] = 41,
-  ["foo.add( 3,4 )"] = 7,
+  ["t.add( 3,4 )"] = 7,
 }
 
 -----------------------------------------------------------------
@@ -33,7 +35,7 @@ local function run( src, scope, Loader, Async )
   local tokens = Async.sync( Loader.cleanupTokens( rawTokens ) )
   local instructions = Async.sync( Loader.buildInstructions(tokens)  )
   Async.sync( Loader.batchPostfix(instructions) )
-  Async.sync( Loader.execute( instructions, scope ) )
+  return Async.sync( Loader.execute( instructions, scope ) )
 end
 
 local function newScope(Scope)
@@ -100,6 +102,36 @@ end
 -- Tests
 -----------------------------------------------------------------
 
---TODO
+do
+  local env = Env:new()
+  local common = common(env)
+  local libs = libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+  
+  local setup = [=[
+    t = {}
+    
+    function t.add( x, y )
+      return x + y
+    end
+
+    t.inner = {
+      value = 100
+    }
+  ]=]
+  
+  for expression, expected in pairs( tests ) do
+    local test = tester:add("Order: "..expression, env, function()
+      local scope = newScope( Scope )
+      local fullExpression = "return "..expression
+      run( setup, scope, Loader, Async )
+      local results = run( fullExpression, scope, Loader, Async ).varargs
+      return results[1].value
+    end)
+
+    test:var_eq(1, expected, "Expression "..expression.." expected a value of "..expected..", but got $1")
+  end
+
+end
 
 return tester
