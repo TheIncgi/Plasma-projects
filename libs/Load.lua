@@ -472,7 +472,7 @@ function Loader.cleanupTokens( tokens )
           }
           tokens[index-1] = newToken
           
-          while twicePrior.type == "op" and (twicePrior.value == "," or twicePrior.value == ".") do
+          while twicePrior and twicePrior.type == "op" and (twicePrior.value == "," or twicePrior.value == ".") do
             local op = table.remove( tokens, index-2 ) -- , or .
             local v = table.remove( tokens, index-3) --____. or ____,
             index = index - 2
@@ -576,6 +576,17 @@ function Loader._readTable( tokens, start )
       elseif token.type == "var" and tokens[index+1] and tokens[index+1].value == "=" then
         key = {{type="str", value = token.value}}
         index = index + 2
+      elseif token.type == "assignment-set" then
+        for i = 1, #token.value -1 do
+          --insert as value
+          N = N + 1
+          local k = {Loader._val(N)}
+          local infix, nextIndex = Loader._collectExpression( tokens, index+1, false, token.line, true )
+          local v = infix
+          table.insert( tableInit, {line = line, infix = {key=k, value=v}} )
+        end
+        key = {{type="str", value = token.value[ #token.value ]}}
+        index = index + 1
       else
         N = N + 1
         key = {Loader._val(N)}
@@ -1873,7 +1884,7 @@ function Loader.execute( instructions, env, ... )
 
       elseif inst.op == "return" then
         Async.insertTasks({
-          label = "assignment eval results",
+          label = "return eval results",
           func = function( stack )
             return { Loader._varargs(table.unpack(stack)) }
           end

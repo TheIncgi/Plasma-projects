@@ -7,7 +7,8 @@ HIDE_PASS = false
 
 local tests = {
   "LoadTest",
-  "FunctionTests"
+  "FunctionTests",
+  "OrderOfOps"
 }
 
 local totalPassed = 0
