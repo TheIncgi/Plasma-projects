@@ -1123,6 +1123,7 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
     }
   )
 end
+
 --1 If the input character is an operand, print it.
 --2 If the input character is an operator- 
 -- a  If stack is empty push it to the stack.
@@ -1199,7 +1200,7 @@ function Loader._generatePostfix( infix )
               table.insert( out, par )
             end
           else
-            if token.value ~= "(" and token.value ~= "[" and token.value ~="{" then
+            --if token.value ~= "(" and token.value ~= "[" and token.value ~="{" then
               if (Loader._ops[opStack[#opStack].value] > priority) 
               or (Loader._rightAssociate[token.value] and Loader._ops[opStack[#opStack].value] == priority) then
                 table.insert(out, table.remove(opStack))
@@ -1207,7 +1208,7 @@ function Loader._generatePostfix( infix )
                   table.insert(out, table.remove(opStack))
                 end
               end
-            end
+            --end
             table.insert(opStack, token)
           end
         else
@@ -1390,6 +1391,10 @@ function Loader.eval( postfix, scope, line )
             args = Loader._varargs()
           end
           
+          if func.type ~= "function" then
+            error("attempt to call "..func.type.." on line "..token.line)
+          end
+
           Loader.callFunc( func, args, function( result )
             table.insert( stack, result )
           end)
@@ -1834,12 +1839,13 @@ function Loader.execute( instructions, env, ... )
         --   index = #instructions+1
         -- }
 
-        local targets = {}
+        local targets
         Async.insertTasks(
           Loader._getTableAssignmentTargets(inst.vars, top)
           ,{
             label = "Execute - assign - call eval",
-            func = function()
+            func = function(_targets)
+              targets = _targets
               Loader.eval( inst.postfix.eval, top, inst.line ) --inserts new task
               return true --this task complete
             end
@@ -1861,10 +1867,6 @@ function Loader.execute( instructions, env, ... )
           }
         )
         
-
-
-        
-        
       elseif inst.op == "eval" then
         --inserts task
         Loader.eval( inst.postfix.eval, top, inst.line )
@@ -1883,7 +1885,7 @@ function Loader.execute( instructions, env, ... )
         local locals = callStack[#callStack]:captureLocals()
 
         Async.insertTasks(
-          Loader._getTableAssignmentTargets({inst.name}, top),
+          Loader._getTableAssignmentTargets({Loader._val(inst.name)}, top),
           {
             label = "Execute - function",
             func = function( targets )
@@ -1893,16 +1895,17 @@ function Loader.execute( instructions, env, ... )
                 instructions = inst.instructions,
                 line = inst.line,
                 args = inst.args,
+                name = targets[1].name,
                 type = "function"
               }
 
               local isLocal = inst.isLocal
               local target = targets[1]
               if target.place == "scope" then
-                target:set( inst.isLocal, target.name, fval )
+                top:set( inst.isLocal, target.name, fval )
               else
                 local nameVal = Loader._val(target.name)
-                target.place.value[nameVal] = stack[i]
+                target.place.value[nameVal] = fval
                 Loader.tableIndexes[target.place.value][target.name] = nameVal
               end
               return true

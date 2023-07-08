@@ -38,10 +38,6 @@ local function newScope(Scope)
   return scope
 end
 
-local function val( v )
-  return LoaderLibs.Loader._val( v )
-end
-
 local function common(env)
   local printProxy = env:proxy("print", function() end)
   printProxy.realDefault = true
@@ -169,7 +165,6 @@ do
     local Lib = require"TheIncgi/Plasma-projects/main/testLibs/TableFunc"
     Lib.test()
   ]=]
-  local HelloRequire = require"testLibs/HelloRequire"
   local env = Env:new()
   local common = common(env)
   local libs = libs()
@@ -179,7 +174,7 @@ do
   setupRequire( Async, Net, common, {path} )
   
   --expect print call with msg
-  common.printProxy{ HelloRequire.msg }.exact()
+  common.printProxy{ "ok" }.exact()
     
   --test code
   local test = tester:add("table function", env, function()
