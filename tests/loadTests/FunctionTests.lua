@@ -87,11 +87,11 @@ do resetLibs()
     OUT_FUNC = not not x
   ]=]
   local env = Env:new()
-  local scope = newScope()
   local common = common(env)
-
+  
   --test code
   local test = tester:add("executes hello world", env, function()
+    local scope = newScope()
     run( src, scope )
     return scope:get"IN_FUNC".value, scope:get"OUT_FUNC".value
   end)
@@ -112,14 +112,13 @@ do resetLibs()
   ]=]
   local HelloRequire = require"libs/HelloRequire"
   local env = Env:new()
-  local scope = newScope()
   local common = common(env)
   local Net = LoaderLibs.Net
   local Async = LoaderLibs.Async
   
   local path = "TheIncgi/Plasma-projects/main/libs/HelloRequire"
   local url = "https://raw.githubusercontent.com/TheIncgi/Plasma-projects/main/libs/HelloRequire.lua"
-
+  
   --expect print call with msg
   common.printProxy{ HelloRequire.msg }.exact()
   common.write_var{ url, "url"}.exact()
@@ -136,17 +135,18 @@ do resetLibs()
             V1 = V1:gsub( "$1", HelloRequire.msg ) --$ doesn't need escape since it's not at the end of the pattern
             Net.sourceCode()
             return true --task complete
-        end
+          end
         }
       )
-    --no return
-  end)
-
-  --test code
-  local test = tester:add("requires code", env, function()
-    run( src, scope )
-  end)
-
+      --no return
+    end)
+    
+    --test code
+    local test = tester:add("requires code", env, function()
+      local scope = newScope()
+      run( src, scope )
+    end)
+    
 end
 
 return tester
