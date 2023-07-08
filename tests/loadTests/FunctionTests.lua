@@ -5,9 +5,6 @@ local matchers = require"MockProxy".static
 local eq = matchers.eq
 local any = matchers.any
 
-local LoaderLibs = {}
-
-
 local tester = Tester:new()
 
 -----------------------------------------------------------------
@@ -19,19 +16,14 @@ local tester = Tester:new()
 -----------------------------------------------------------------
 
 -- cleaning out mocked functions
-local function resetLibs()
+local function libs()
   package.loaded["libs/Load"] = nil
   local libs = require"libs/Load"
-  LoaderLibs.Loader = libs.Loader
-  LoaderLibs.Async  = libs.Async
-  LoaderLibs.Scope  = libs.Scope
-  LoaderLibs.Net    = libs.Net
+  return libs
 end
 
 -- execute source code
-local function run( src, scope )
-  local Loader, Async = LoaderLibs.Loader, LoaderLibs.Async
-
+local function run( src, scope, Loader, Async )
   local rawTokens = Async.sync( Loader.tokenize(src) )
   local tokens = Async.sync( Loader.cleanupTokens( rawTokens ) )
   local instructions = Async.sync( Loader.buildInstructions(tokens)  )
@@ -39,15 +31,11 @@ local function run( src, scope )
   Async.sync( Loader.execute( instructions, scope ) )
 end
 
-local function newScope()
-  local scope =  LoaderLibs.Scope:new("UNIT_TEST", 1, nil, 1)
+local function newScope(Scope)
+  local scope =  Scope:new("UNIT_TEST", 1, nil, 1)
   scope:addGlobals()
   scope:addPlasmaGlobals()
   return scope
-end
-
-local function val( v )
-  return LoaderLibs.Loader._val( v )
 end
 
 local function common(env)
@@ -67,6 +55,42 @@ local function common(env)
   }
 end
 
+local function readSource( path )
+  local file = io.open(path:sub(#("TheIncgi/Plasma-projects/main/")+1)..".lua","r")
+  local data = file:read("*all")
+  file:close()
+  return data
+end
+
+
+local function setupRequire( Async, Net, commonProxies, paths )
+  local sources = {}
+  local lastURL = false
+  for i, path in ipairs(paths) do
+    local src = readSource( path )
+    local url = "https://raw.githubusercontent.com/"..path..".lua"
+    if not sources[url] then
+      sources[url] = src
+      commonProxies.write_var{ url, "url"}.exactCompute(function()
+        lastURL = url
+      end)
+    end
+  end
+
+  commonProxies.output{ "require", 1 }.exactCompute(function(...)
+    Async.insertTasks(
+      {
+        label = "UNIT TESTING - Require - Net result: "..lastURL,
+        func = function()
+          V1 = sources[ lastURL ]
+          Net.sourceCode()
+          return true --task complete
+          end
+      }
+    )
+  end)
+end
+
 -----------------------------------------------------------------
 -- Tests
 -----------------------------------------------------------------
@@ -74,7 +98,7 @@ end
 -----------------
 -- Hello world --
 -----------------
-do resetLibs()
+do
   --given
   local src = [=[
     function test()
@@ -88,11 +112,13 @@ do resetLibs()
   ]=]
   local env = Env:new()
   local common = common(env)
-  
+  local libs = libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
   --test code
   local test = tester:add("executes hello world", env, function()
-    local scope = newScope()
-    run( src, scope )
+    local scope = newScope(Scope)
+    run( src, scope, Loader, Async )
     return scope:get"IN_FUNC".value, scope:get"OUT_FUNC".value
   end)
 
@@ -105,7 +131,7 @@ end
 -----------------
 --   Require   --
 -----------------
-do resetLibs()
+do
   local src = [=[
     local HelloRequire = require"TheIncgi/Plasma-projects/main/testLibs/HelloRequire"
     print( HelloRequire.msg )
@@ -113,39 +139,48 @@ do resetLibs()
   local HelloRequire = require"testLibs/HelloRequire"
   local env = Env:new()
   local common = common(env)
-  local Net = LoaderLibs.Net
-  local Async = LoaderLibs.Async
-  
+  local libs = libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
   local path = "TheIncgi/Plasma-projects/main/testLibs/HelloRequire"
-  local url = "https://raw.githubusercontent.com/"..path..".lua"
   
   --expect print call with msg
   common.printProxy{ HelloRequire.msg }.exact()
-  common.write_var{ url, "url"}.exact()
-  common.output{ "require", 1 }.exactCompute(function(...)
-    Async.insertTasks(
-      {
-        label = "UNIT TESTING - Require - Net result",
-        func = function()
-          V1 = [==[
-            local foo = {}
-            foo.msg = "$1"
-            return foo
-            ]==]
-            V1 = V1:gsub( "$1", HelloRequire.msg ) --$ doesn't need escape since it's not at the end of the pattern
-            Net.sourceCode()
-            return true --task complete
-          end
-        }
-      )
-      --no return
-    end)
+
+  setupRequire( Async, Net, common, {path} )
     
-    --test code
-    local test = tester:add("requires code", env, function()
-      local scope = newScope()
-      run( src, scope )
-    end)
+  --test code
+  local test = tester:add("requires code", env, function()
+    local scope = newScope(Scope)
+    run( src, scope, Loader, Async )
+  end)
+    
+end
+
+
+-----------------
+--  Table Func --
+-----------------
+do
+  local src = [=[
+    local Lib = require"TheIncgi/Plasma-projects/main/testLibs/TableFunc"
+    Lib.test()
+  ]=]
+  local env = Env:new()
+  local common = common(env)
+  local libs = libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+  local path = "TheIncgi/Plasma-projects/main/testLibs/TableFunc"
+
+  setupRequire( Async, Net, common, {path} )
+  
+  --expect print call with msg
+  common.printProxy{ "ok" }.exact()
+    
+  --test code
+  local test = tester:add("table function", env, function()
+    local scope = newScope(Scope)
+    run( src, scope, Loader, Async )
+  end)
     
 end
 

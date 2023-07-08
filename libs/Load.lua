@@ -1,6 +1,6 @@
 --copied & modified from plasmaNN.lua
 
-Async = {}
+local Async = {}
 
 --async
 local tasks = {}
@@ -81,6 +81,7 @@ end
 
 --async, return task
 function Async.RETURN( label, ... )
+  if type(label) ~= "string" then error("Label expected for Async.RETURN", 2) end
   local r = {...}
 	return {
     label = "RETURN-"..label,
@@ -180,9 +181,9 @@ local range = Async.range
 local RETURN = Async.RETURN
 --=====================================================================================
 
-Loader = {}
-Scope = {}
-Net = {}
+local Loader = {}
+local Scope = {}
+local Net = {}
 
 --[table][raw key] -> wrapped key
 Loader.tableIndexes = {}
@@ -1122,6 +1123,7 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
     }
   )
 end
+
 --1 If the input character is an operand, print it.
 --2 If the input character is an operator- 
 -- a  If stack is empty push it to the stack.
@@ -1198,7 +1200,7 @@ function Loader._generatePostfix( infix )
               table.insert( out, par )
             end
           else
-            if token.value ~= "(" and token.value ~= "[" and token.value ~="{" then
+            --if token.value ~= "(" and token.value ~= "[" and token.value ~="{" then
               if (Loader._ops[opStack[#opStack].value] > priority) 
               or (Loader._rightAssociate[token.value] and Loader._ops[opStack[#opStack].value] == priority) then
                 table.insert(out, table.remove(opStack))
@@ -1206,7 +1208,7 @@ function Loader._generatePostfix( infix )
                   table.insert(out, table.remove(opStack))
                 end
               end
-            end
+            --end
             table.insert(opStack, token)
           end
         else
@@ -1389,6 +1391,10 @@ function Loader.eval( postfix, scope, line )
             args = Loader._varargs()
           end
           
+          if func.type ~= "function" then
+            error("attempt to call "..func.type.." on line "..token.line)
+          end
+
           Loader.callFunc( func, args, function( result )
             table.insert( stack, result )
           end)
@@ -1735,6 +1741,71 @@ function Loader._appendCallEnv( callStack, name, line, index, env )
   table.insert(callStack, scope )
 end
 
+function Loader._getTableAssignmentTargets(vars, top)
+  local targets = {}
+  return {
+    label = "Loader._getTableAssignmentTargets - setup",
+    func = function()
+      Async.insertTasks(
+        Async.forEach("Loader._getTableAssignmentTargets", 
+          function(i,var)
+            local tmp = {}
+            for x in var.value:gmatch"[^.]+" do
+              table.insert(tmp, x)
+            end
+
+            if #tmp == 1 then
+              table.insert(targets,{
+                place = "scope",
+                name = tmp[1]
+              })
+            else
+              local tmpPostfix = {}
+              for i=1, #tmp-1 do
+                table.insert(tmpPostfix,{
+                  type = "var",
+                  line = var.line,
+                  value = tmp[i],
+                  blockLevel = var.blockLevel
+                })
+              end
+              for i=1, #tmp-2 do
+                table.insert(tmpPostfix,{
+                  type = "op",
+                  line = var.line,
+                  value = ".",
+                  blockLevel = var.blockLevel
+                })
+              end
+              Async.insertTasks(
+                {
+                  label = "Loader._getTableAssignmentTargets - eval",
+                  func = function()
+                    Loader.eval( tmpPostfix, top, var.line )
+                    return true
+                  end
+                },{
+                  label = "Loader._getTableAssignmentTargets - eval result",
+                  func = function( results )
+                    table.insert(targets,{
+                      place = results[1], 
+                      name = tmp[#tmp]
+                    })
+                    return true
+                  end
+                }
+              )
+            end
+          end, ipairs, vars
+        ), 
+        Async.RETURN("Loader._getTableAssignemnetTargets - return",targets)
+      )
+      return true
+    end
+  }
+  
+end
+
 function Loader.execute( instructions, env, ... )
   local callStack = {
   }
@@ -1768,61 +1839,13 @@ function Loader.execute( instructions, env, ... )
         --   index = #instructions+1
         -- }
 
-        local targets = {}
+        local targets
         Async.insertTasks(
-          Async.forEach("Execute - assign - pre-evaluate", 
-            function(i,var)
-              local tmp = {}
-              for x in var.value:gmatch"[^.]+" do
-                table.insert(tmp, x)
-              end
-
-              if #tmp == 1 then
-                table.insert(targets,{
-                  place = "scope",
-                  name = tmp[1]
-                })
-              else
-                local tmpPostfix = {}
-                for i=1, #tmp-1 do
-                  table.insert(tmpPostfix,{
-                    type = "var",
-                    line = var.line,
-                    value = tmp[i],
-                    blockLevel = var.blockLevel
-                  })
-                end
-                for i=1, #tmp-2 do
-                  table.insert(tmpPostfix,{
-                    type = "op",
-                    line = var.line,
-                    value = ".",
-                    blockLevel = var.blockLevel
-                  })
-                end
-                Async.insertTasks(
-                  {
-                    label = "Execute - assign - pre-evaluate -> eval",
-                    func = function()
-                      Loader.eval( tmpPostfix, top, var.line )
-                      return true
-                    end
-                  },{
-                    label = "Execute - assign - pre-evaluate - eval result",
-                    func = function( results )
-                      table.insert(targets,{
-                        place = results[1], 
-                        name = tmp[#tmp]
-                      })
-                      return true
-                    end
-                  }
-                )
-              end
-            end, ipairs, inst.vars
-          ),{
+          Loader._getTableAssignmentTargets(inst.vars, top)
+          ,{
             label = "Execute - assign - call eval",
-            func = function()
+            func = function(_targets)
+              targets = _targets
               Loader.eval( inst.postfix.eval, top, inst.line ) --inserts new task
               return true --this task complete
             end
@@ -1844,10 +1867,6 @@ function Loader.execute( instructions, env, ... )
           }
         )
         
-
-
-        
-        
       elseif inst.op == "eval" then
         --inserts task
         Loader.eval( inst.postfix.eval, top, inst.line )
@@ -1864,17 +1883,37 @@ function Loader.execute( instructions, env, ... )
         return true --exit, return values from task passed
       elseif inst.op == "function" then --capture locals & add to env
         local locals = callStack[#callStack]:captureLocals()
-        local fenv = Scope:new("fenv: "..inst.name, inst.line, top, index, locals)
-        local fval = {
-          env = fenv,
-          instructions = inst.instructions,
-          line = inst.line,
-          args = inst.args,
-          type = "function"
-        }
 
-        local target = inst.isLocal and callStack[#callStack] or callStack[1]
-        target:set( inst.isLocal, inst.name, fval )
+        Async.insertTasks(
+          Loader._getTableAssignmentTargets({Loader._val(inst.name)}, top),
+          {
+            label = "Execute - function",
+            func = function( targets )
+              local fenv = Scope:new("fenv: "..inst.name, inst.line, top, index, locals)
+              local fval = {
+                env = fenv,
+                instructions = inst.instructions,
+                line = inst.line,
+                args = inst.args,
+                name = targets[1].name,
+                type = "function"
+              }
+
+              local isLocal = inst.isLocal
+              local target = targets[1]
+              if target.place == "scope" then
+                top:set( inst.isLocal, target.name, fval )
+              else
+                local nameVal = Loader._val(target.name)
+                target.place.value[nameVal] = fval
+                Loader.tableIndexes[target.place.value][target.name] = nameVal
+              end
+              return true
+            end
+          }
+        )
+
+        
       elseif inst.op == "if" then
         Async.insertTasks({
           label = "if condition results",
@@ -2049,7 +2088,7 @@ function Net.require( path )
         if not Net.result then
           return false -- wait till next tick
         end
-        run(Net.result) -- returns values
+        Loader.run(Net.result) -- returns values
         return true --task complete
       end
     }
@@ -2074,7 +2113,7 @@ local Plasma = {}
 ------------------
 --  interfaces  --
 ------------------
-function run(src)
+function Loader.run(src)
   src = src or V1
   if src then
     Async.insertTasks(
