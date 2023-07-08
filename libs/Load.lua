@@ -182,11 +182,18 @@ local RETURN = Async.RETURN
 
 Loader = {}
 Scope = {}
+Net = {}
 
 --[table][raw key] -> wrapped key
 Loader.tableIndexes = {}
 setmetatable( Loader.tableIndexes, {
   __mode = "k"
+})
+
+--["string"] -> {wrapped string}
+Loader.strings = {}
+setmetatable(Loader.strings, {
+  __mode = "v"
 })
 
 Loader.keywords = {
@@ -464,11 +471,15 @@ function Loader.cleanupTokens( tokens )
           }
           tokens[index-1] = newToken
           
-          while twicePrior.type == "op" and twicePrior.value == "," do
-            table.remove( tokens, index-2 ) -- ,
-            local v = table.remove( tokens, index-3)
+          while twicePrior.type == "op" and (twicePrior.value == "," or twicePrior.value == ".") do
+            local op = table.remove( tokens, index-2 ) -- , or .
+            local v = table.remove( tokens, index-3) --____. or ____,
             index = index - 2
-            table.insert(newToken.value, 1, v)
+            if op.value == "," then
+              table.insert(newToken.value, 1, v)
+            else
+              newToken.value[1].value = v.value ..".".. newToken.value[1].value
+            end
             twicePrior = tokens[index-2]
           end
           table.remove(tokens, index)
@@ -1277,20 +1288,39 @@ function Loader.callFunc( func, args, callback )
   if func.value then
     local result
     if func.unpacker then
-      func.unpacker( fArgs )
+      fArgs = func.unpacker( fArgs )
     end
-    --call
-    local results
-    if #fArgs > 0 then
-      results = {func.value( table.unpack(fArgs) )}
-    else
-      results = {func.value()}
-    end
-    if func.packer then
-      func.packer( results )
-    end
-    result = Loader._varargs(table.unpack(results))
-    callback( result )
+    
+    Async.insertTasks(
+      {
+        label = "Loader.callFunc - native",
+        func = function()
+          local results
+          if #fArgs > 0 then
+            results = {func.value( table.unpack(fArgs) )}
+          else
+            results = {func.value()}
+          end
+          
+          return {results} --ok if async and returns nothing, inserted task in queue will
+        end
+      },{
+        label = "Loader.callFunc - native - packer",
+        func = function( results )
+          if func.packer then
+            results = func.packer( results )
+          end
+          return {results}
+        end
+      },{
+        label = "Loader.callFunc - native - result",
+        func = function( results )
+          local result = Loader._varargs(table.unpack(results))
+          callback( result )
+          return true
+        end
+      }
+    )
     
   else
     for i=1,#func.args do
@@ -1328,7 +1358,7 @@ function Loader._initalizeTable( tableToken, scope, line )
     Loader.eval( entry.postfix.value, scope, line )
 
     Async.insertTasks({
-      label = "_initalizeTable-value-result",
+      label = "_initalizeTable-key-result",
       func = function(tKey)
         key = tKey[1]
         indexer[key.value] = key
@@ -1364,7 +1394,7 @@ function Loader.eval( postfix, scope, line )
           end)
 
         elseif token.value == "." then --TODO use b.name not [b]
-          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          local b, a = table.remove(stack), pop(stack, scope, line)
           if a.type ~= "table" then
             error("attempt to index "..a.type.." on line "..token.line)
           end
@@ -1373,7 +1403,7 @@ function Loader.eval( postfix, scope, line )
             error("internal error: missing table index from table on line "..token)
           else
             local k = indexer[b.value]
-            table.insert(stack, val(a[b] or a[k]))
+            table.insert(stack, a.value[b] or a.value[k])
           end
 
         elseif token.value == "not" then
@@ -1556,6 +1586,12 @@ function Loader.eval( postfix, scope, line )
     {
       label = "eval-expand-varargs",
       func = function()
+        for i=1, #stack do
+          if stack[i].type == "var" then
+            stack[i] = scope:get( stack[i].value )
+          end
+        end
+
         if #stack > 0 and stack[#stack].varargs then
           local varargs = table.remove(stack).varargs
           for i=1, #stack-1 do
@@ -1575,12 +1611,14 @@ function Loader.PACKER( results )
   for i=1, #results do
     results[i] = Loader._val(results[i])
   end
+  return results
 end
 
 function Loader.UNPACKER( fArgs )
   for i=1, #fArgs do
     fArgs[i] = fArgs[i].value
   end
+  return fArgs
 end
 
 
@@ -1642,10 +1680,13 @@ function Scope:captureLocals(fenv)
 end
 
 function Scope:addPlasmaGlobals()
-  self:setNativeFunc( "output",     output )
-  self:setNativeFunc( "trigger",     trigger )
-  self:setNativeFunc( "read_var",     read_var )
-  self:setNativeFunc( "write_var",     write_var )
+  self:setNativeFunc( "output",     output      )
+  self:setNativeFunc( "trigger",    trigger     )
+  self:setNativeFunc( "read_var",   read_var    )
+  self:setNativeFunc( "write_var",  write_var   )
+  self:setNativeFunc( "require",    Net.require, nil, function( results )
+    return results.varargs
+  end ) --use default unpacker, do not use packer (run returns varargs)
 end
 
 function Scope:setPlasmaInputs()
@@ -1727,19 +1768,85 @@ function Loader.execute( instructions, env, ... )
         --   index = #instructions+1
         -- }
 
-        Async.insertTasks({
-          label = "assignment eval results",
-          func = function( stack )
-            local target = top
-            for i=1, #inst.vars do
-              target:set(inst.isLocal, inst.vars[i].value, stack[i] or Loader.constants["nil"] )
-            end
-            return true
-          end
-        })
+        local targets = {}
+        Async.insertTasks(
+          Async.forEach("Execute - assign - pre-evaluate", 
+            function(i,var)
+              local tmp = {}
+              for x in var.value:gmatch"[^.]+" do
+                table.insert(tmp, x)
+              end
 
-        --inserts task
-        Loader.eval( inst.postfix.eval, top, inst.line )
+              if #tmp == 1 then
+                table.insert(targets,{
+                  place = "scope",
+                  name = tmp[1]
+                })
+              else
+                local tmpPostfix = {}
+                for i=1, #tmp-1 do
+                  table.insert(tmpPostfix,{
+                    type = "var",
+                    line = var.line,
+                    value = tmp[i],
+                    blockLevel = var.blockLevel
+                  })
+                end
+                for i=1, #tmp-2 do
+                  table.insert(tmpPostfix,{
+                    type = "op",
+                    line = var.line,
+                    value = ".",
+                    blockLevel = var.blockLevel
+                  })
+                end
+                Async.insertTasks(
+                  {
+                    label = "Execute - assign - pre-evaluate -> eval",
+                    func = function()
+                      Loader.eval( tmpPostfix, top, var.line )
+                      return true
+                    end
+                  },{
+                    label = "Execute - assign - pre-evaluate - eval result",
+                    func = function( results )
+                      table.insert(targets,{
+                        place = results[1], 
+                        name = tmp[#tmp]
+                      })
+                      return true
+                    end
+                  }
+                )
+              end
+            end, ipairs, inst.vars
+          ),{
+            label = "Execute - assign - call eval",
+            func = function()
+              Loader.eval( inst.postfix.eval, top, inst.line ) --inserts new task
+              return true --this task complete
+            end
+          },{
+            label = "assignment eval results",
+            func = function( stack )
+              for i=1, #targets do
+                local target = targets[i]
+                if target.place == "scope" then
+                  top:set(inst.isLocal, target.name, stack[i] or Loader.constants["nil"] )
+                else
+                  local nameVal = Loader._val(target.name)
+                  target.place.value[nameVal] = stack[i]
+                  Loader.tableIndexes[target.place.value][target.name] = nameVal
+                end
+              end
+              return true
+            end
+          }
+        )
+        
+
+
+        
         
       elseif inst.op == "eval" then
         --inserts task
@@ -1932,6 +2039,33 @@ function Loader.execute( instructions, env, ... )
 end
 
 --===================================================================================
+
+function Net.require( path )
+  --result handling
+  Async.insertTasks(
+    {
+      label = "Net.require",
+      func = function()
+        if not Net.result then
+          return false -- wait till next tick
+        end
+        run(Net.result) -- returns values
+        return true --task complete
+      end
+    }
+  )
+  --network call
+  Net.result = false
+  path = "https://raw.githubusercontent.com/"..path..".lua"
+  write_var(path, "url")
+  output("require", 1)
+end
+
+function Net.sourceCode()
+  Net.result = V1
+end
+
+--===================================================================================
 --===================================================================================
 --==============================        Plasma        ===============================
 --===================================================================================
@@ -1940,8 +2074,8 @@ local Plasma = {}
 ------------------
 --  interfaces  --
 ------------------
-function run()
-  local src = V1
+function run(src)
+  src = src or V1
   if src then
     Async.insertTasks(
       {
@@ -2090,5 +2224,6 @@ end
 return {
   Loader = Loader,
   Async = Async,
-  Scope = Scope
+  Scope = Scope,
+  Net = Net
 }
