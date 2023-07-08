@@ -107,17 +107,17 @@ end
 -----------------
 do resetLibs()
   local src = [=[
-    local HelloRequire = require"TheIncgi/Plasma-projects/main/libs/HelloRequire"
+    local HelloRequire = require"TheIncgi/Plasma-projects/main/testLibs/HelloRequire"
     print( HelloRequire.msg )
   ]=]
-  local HelloRequire = require"libs/HelloRequire"
+  local HelloRequire = require"testLibs/HelloRequire"
   local env = Env:new()
   local common = common(env)
   local Net = LoaderLibs.Net
   local Async = LoaderLibs.Async
   
-  local path = "TheIncgi/Plasma-projects/main/libs/HelloRequire"
-  local url = "https://raw.githubusercontent.com/TheIncgi/Plasma-projects/main/libs/HelloRequire.lua"
+  local path = "TheIncgi/Plasma-projects/main/testLibs/HelloRequire"
+  local url = "https://raw.githubusercontent.com/"..path..".lua"
   
   --expect print call with msg
   common.printProxy{ HelloRequire.msg }.exact()
