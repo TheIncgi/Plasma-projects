@@ -96,7 +96,7 @@ end
 -----------------------------------------------------------------
 
 -----------------
--- Hello world --
+-- scope test  --
 -----------------
 do
   --given
@@ -116,7 +116,7 @@ do
   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
 
   --test code
-  local test = tester:add("executes hello world", env, function()
+  local test = tester:add("scope test", env, function()
     local scope = newScope(Scope)
     run( src, scope, Loader, Async )
     return scope:get"IN_FUNC".value, scope:get"OUT_FUNC".value
