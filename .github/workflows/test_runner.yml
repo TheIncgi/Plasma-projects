@@ -44,7 +44,9 @@ jobs:
       - name: Run unit tests
         run: |
           export UNIT_TEST_LIB_PATH="${GITHUB_WORKSPACE}/thats-no-moon"
-          
+          echo "LS============"
+          ls
+          echo "=============="
           lua TestLauncher.lua > output.txt  # Redirect output to a file
           cat output.txt  # Print the contents of the output file
 
