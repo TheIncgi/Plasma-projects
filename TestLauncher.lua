@@ -4,16 +4,10 @@ package.path = package.path..";.\\tests\\?.lua"
 package.path = package.path..";.\\tests\\loadTests\\?.lua"
 
 do --github actions support
-  local root = os.getenv"$GITHUB_WORKSPACE"
+  local root = os.getenv"GITHUB_WORKSPACE"
   if root and #root > 0 then
-    local path = package.path
-    local newPath = {path}
-    for p in path:gmatch("[^;]+") do
-      if p:sub(1,1) == "." then
-        table.insert(newPath, root..p:sub(2))
-      end
-    end
-    package.path = table.concat(newPath, ";")
+    package.path = package.path..";"..root.."\\tests\\?.lua"
+    package.path = package.path..";"..root.."\\tests\\loadTests\\?.lua"
   end
 end
 
