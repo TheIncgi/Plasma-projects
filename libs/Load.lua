@@ -283,7 +283,8 @@ Loader._ops = {
 }
 
 Loader._rightAssociate = {
-	["^"] = true
+	["^"] = true,
+  ["not"] = true
 }
 
 
@@ -1193,7 +1194,14 @@ function Loader._generatePostfix( infix )
             table.insert( out, token ) --treated as value
             return --continue
           end
-          if #opStack == 0 then
+          if #opStack == 0 
+          or (token.value == "(" or token.value == "[" or token.value == "{")
+          or ((opStack[#opStack].value == "(" or opStack[#opStack].value == "[" or opStack[#opStack].value == "{") and (
+              token.value ~= ")" and token.value ~= "]" and token.value~= "}"
+            )) then
+              while #opStack > 0 and opStack[#opStack].value == "." do --happens before () sets
+                table.insert(out, table.remove(opStack))
+              end
             table.insert(opStack, token)
           elseif token.value == ")" or token.value == "]" or token.value == "}" then
             while #opStack > 0 and (
@@ -1211,9 +1219,8 @@ function Loader._generatePostfix( infix )
               table.insert( out, par )
             end
           else
-            --if token.value ~= "(" and token.value ~= "[" and token.value ~="{" then
               if (Loader._ops[opStack[#opStack].value] > priority) 
-              or (Loader._rightAssociate[token.value] and Loader._ops[opStack[#opStack].value] == priority) then
+              or ((not Loader._rightAssociate[token.value]) and Loader._ops[opStack[#opStack].value] == priority) then
                 table.insert(out, table.remove(opStack))
                 while #opStack > 0 and (Loader._ops[opStack[#opStack].value] > priority)  do
                   table.insert(out, table.remove(opStack))
@@ -1550,7 +1557,7 @@ function Loader.eval( postfix, scope, line )
           if a.type == "function" or b.type == "function" then
             error("attempt to concat "..a.type.." with "..b.type.." on line "..token.line)
           end
-          table.insert(stack, val(a .. b))
+          table.insert(stack, val(a.value .. b.value))
 
         elseif token.value == "," then
           local b, a = pop(stack, scope, line), pop(stack, scope, line, true)
