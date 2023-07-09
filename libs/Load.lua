@@ -454,9 +454,9 @@ function Loader.cleanupTokens( tokens )
         infoToken.value = tonumber(infoToken.value)
 
         if prior and prior.value == "-"
-        and (twicePrior and twicePrior.type == "op" and (
+        and ((twicePrior and twicePrior.type == "op" and (
           twicePrior.value ~= ")" and twicePrior.value ~= "}" and twicePrior.value ~= "]" ))
-         or twicePrior == nil then
+         or twicePrior == nil) then
           table.remove(tokens, index-1)
           infoToken.value = -infoToken.value
           index = index-1
