@@ -283,7 +283,8 @@ Loader._ops = {
 }
 
 Loader._rightAssociate = {
-	["^"] = true
+	["^"] = true,
+  ["not"] = true
 }
 
 
@@ -454,9 +455,9 @@ function Loader.cleanupTokens( tokens )
         infoToken.value = tonumber(infoToken.value)
 
         if prior and prior.value == "-"
-        and (twicePrior and twicePrior.type == "op" and (
+        and ((twicePrior and twicePrior.type == "op" and (
           twicePrior.value ~= ")" and twicePrior.value ~= "}" and twicePrior.value ~= "]" ))
-         or twicePrior == nil then
+         or twicePrior == nil) then
           table.remove(tokens, index-1)
           infoToken.value = -infoToken.value
           index = index-1
@@ -472,7 +473,7 @@ function Loader.cleanupTokens( tokens )
           }
           tokens[index-1] = newToken
           
-          while twicePrior.type == "op" and (twicePrior.value == "," or twicePrior.value == ".") do
+          while twicePrior and twicePrior.type == "op" and (twicePrior.value == "," or twicePrior.value == ".") do
             local op = table.remove( tokens, index-2 ) -- , or .
             local v = table.remove( tokens, index-3) --____. or ____,
             index = index - 2
@@ -576,6 +577,17 @@ function Loader._readTable( tokens, start )
       elseif token.type == "var" and tokens[index+1] and tokens[index+1].value == "=" then
         key = {{type="str", value = token.value}}
         index = index + 2
+      elseif token.type == "assignment-set" then
+        for i = 1, #token.value -1 do
+          --insert as value
+          N = N + 1
+          local k = {Loader._val(N)}
+          local infix, nextIndex = Loader._collectExpression( tokens, index+1, false, token.line, true )
+          local v = infix
+          table.insert( tableInit, {line = line, infix = {key=k, value=v}} )
+        end
+        key = {{type="str", value = token.value[ #token.value ]}}
+        index = index + 1
       else
         N = N + 1
         key = {Loader._val(N)}
@@ -1182,7 +1194,14 @@ function Loader._generatePostfix( infix )
             table.insert( out, token ) --treated as value
             return --continue
           end
-          if #opStack == 0 then
+          if #opStack == 0 
+          or (token.value == "(" or token.value == "[" or token.value == "{")
+          or ((opStack[#opStack].value == "(" or opStack[#opStack].value == "[" or opStack[#opStack].value == "{") and (
+              token.value ~= ")" and token.value ~= "]" and token.value~= "}"
+            )) then
+              while #opStack > 0 and opStack[#opStack].value == "." do --happens before () sets
+                table.insert(out, table.remove(opStack))
+              end
             table.insert(opStack, token)
           elseif token.value == ")" or token.value == "]" or token.value == "}" then
             while #opStack > 0 and (
@@ -1200,9 +1219,8 @@ function Loader._generatePostfix( infix )
               table.insert( out, par )
             end
           else
-            --if token.value ~= "(" and token.value ~= "[" and token.value ~="{" then
               if (Loader._ops[opStack[#opStack].value] > priority) 
-              or (Loader._rightAssociate[token.value] and Loader._ops[opStack[#opStack].value] == priority) then
+              or ((not Loader._rightAssociate[token.value]) and Loader._ops[opStack[#opStack].value] == priority) then
                 table.insert(out, table.remove(opStack))
                 while #opStack > 0 and (Loader._ops[opStack[#opStack].value] > priority)  do
                   table.insert(out, table.remove(opStack))
@@ -1539,7 +1557,7 @@ function Loader.eval( postfix, scope, line )
           if a.type == "function" or b.type == "function" then
             error("attempt to concat "..a.type.." with "..b.type.." on line "..token.line)
           end
-          table.insert(stack, val(a .. b))
+          table.insert(stack, val(a.value .. b.value))
 
         elseif token.value == "," then
           local b, a = pop(stack, scope, line), pop(stack, scope, line, true)
@@ -1873,7 +1891,7 @@ function Loader.execute( instructions, env, ... )
 
       elseif inst.op == "return" then
         Async.insertTasks({
-          label = "assignment eval results",
+          label = "return eval results",
           func = function( stack )
             return { Loader._varargs(table.unpack(stack)) }
           end

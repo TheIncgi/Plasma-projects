@@ -11,6 +11,23 @@ local tester = Tester:new()
 -- Test data
 -----------------------------------------------------------------
 
+local tests = {
+  ["1234"] = 1234,
+  ["3 * 4 + 5 * 6"] = 42,
+  ["5 * 9 - (-3+1)^2"] = 41,
+  ["2 * (3 * 4)"] = 24,
+  ["(3 * 4) * 2"] = 24,
+  ["4^3^2"] = 262144, --4^9 not 64^2
+  ["20 / 5 / 2"] = 2,
+  ["20 / (5 / 2)"] = 8,
+  ["t.add( 3,4 )"] = 7,
+  ["10 + t.add( 5*6, 20/5 ) - 4"] = 40,
+  ["10 - 5 == 20 / 4"] = true,
+  ["10 .. 1 * 3"] = "103",
+  ["1 * 3 .. 10"] = "310",
+  ["not not 1"] = true,
+}
+
 -----------------------------------------------------------------
 -- Test utils
 -----------------------------------------------------------------
@@ -28,7 +45,7 @@ local function run( src, scope, Loader, Async )
   local tokens = Async.sync( Loader.cleanupTokens( rawTokens ) )
   local instructions = Async.sync( Loader.buildInstructions(tokens)  )
   Async.sync( Loader.batchPostfix(instructions) )
-  Async.sync( Loader.execute( instructions, scope ) )
+  return Async.sync( Loader.execute( instructions, scope ) )
 end
 
 local function newScope(Scope)
@@ -95,93 +112,36 @@ end
 -- Tests
 -----------------------------------------------------------------
 
------------------
--- scope test  --
------------------
 do
-  --given
-  local src = [=[
-    function test()
-      local function x(...)
-        return ...
-      end
-      IN_FUNC = not not x --fails not not function
+  local env = Env:new()
+  local common = common(env)
+  local libs = libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+  
+  local setup = [=[
+    t = {}
+    
+    function t.add( x, y )
+      return x + y
     end
-    test()
-    OUT_FUNC = not not x
+
+    t.inner = {
+      value = 100
+    }
   ]=]
-  local env = Env:new()
-  local common = common(env)
-  local libs = libs()
-  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
-
-  --test code
-  local test = tester:add("scope test", env, function()
-    local scope = newScope(Scope)
-    run( src, scope, Loader, Async )
-    return scope:get"IN_FUNC".value, scope:get"OUT_FUNC".value
-  end)
-
-  --expect
-  test:var_isTrue(1, "expected global `IN_FUNC` to be `true`, actual: $1") --1, first return value
-  test:var_isFalse(2, "expected global `OUT_FUNC` to be `false`, actual: $1") --2, second return value
-  V1,V2,V3,V4,V5,V6,V7,V8 = nil, nil, nil, nil, nil, nil, nil, nil
-end
-
------------------
---   Require   --
------------------
-do
-  local src = [=[
-    local HelloRequire = require"TheIncgi/Plasma-projects/main/testLibs/HelloRequire"
-    print( HelloRequire.msg )
-  ]=]
-  local HelloRequire = require"testLibs/HelloRequire"
-  local env = Env:new()
-  local common = common(env)
-  local libs = libs()
-  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
-  local path = "TheIncgi/Plasma-projects/main/testLibs/HelloRequire"
   
-  --expect print call with msg
-  common.printProxy{ HelloRequire.msg }.exact()
+  for expression, expected in pairs( tests ) do
+    local test = tester:add("Order: "..expression, env, function()
+      local scope = newScope( Scope )
+      local fullExpression = "return "..expression
+      run( setup, scope, Loader, Async )
+      local results = run( fullExpression, scope, Loader, Async ).varargs
+      return results[1].value
+    end)
 
-  setupRequire( Async, Net, common, {path} )
-    
-  --test code
-  local test = tester:add("requires code", env, function()
-    local scope = newScope(Scope)
-    run( src, scope, Loader, Async )
-  end)
-    
-end
+    test:var_eq(1, expected, "Expression "..expression.." expected a value of "..tostring(expected)..", but got $1")
+  end
 
-
------------------
---  Table Func --
------------------
-do
-  local src = [=[
-    local Lib = require"TheIncgi/Plasma-projects/main/testLibs/TableFunc"
-    Lib.test()
-  ]=]
-  local env = Env:new()
-  local common = common(env)
-  local libs = libs()
-  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
-  local path = "TheIncgi/Plasma-projects/main/testLibs/TableFunc"
-
-  setupRequire( Async, Net, common, {path} )
-  
-  --expect print call with msg
-  common.printProxy{ "ok" }.exact()
-    
-  --test code
-  local test = tester:add("table function", env, function()
-    local scope = newScope(Scope)
-    run( src, scope, Loader, Async )
-  end)
-    
 end
 
 return tester

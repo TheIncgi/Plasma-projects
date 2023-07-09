@@ -18,3 +18,13 @@ setmetatable(t, {
 })
 ```
 
+```lua
+x = 10
+y = 11
+t = {
+    x, var = 100, y, --not assignment set in table declaration
+    foo = function()
+        return x, y --commas ok again here
+    end
+}
+```
