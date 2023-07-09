@@ -13,6 +13,7 @@ do --github actions support
         table.insert(newPath, root..p:sub(2))
       end
     end
+    package.path = table.concat(newPath, ";")
   end
 end
 
