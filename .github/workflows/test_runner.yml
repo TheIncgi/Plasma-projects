@@ -34,8 +34,17 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y lua5.2
+
+      - name: Clone unit test lib
+        uses: actions/checkout@v3
+        with:
+          repository: TheIncgi/Thats-No-Moon
+          path: thats-no-moon  # Specify the folder where the dependency will be cloned
+
       - name: Run unit tests
         run: |
+          export UNIT_TEST_LIB_PATH="${GITHUB_WORKSPACE}/thats-no-moon"
+          
           lua TestLauncher.lua > output.txt  # Redirect output to a file
           cat output.txt  # Print the contents of the output file
 
