@@ -1,15 +1,7 @@
 local UNIT_TEST_LIB_PATH = os.getenv"UNIT_TEST_LIB_PATH" .."/?.lua" --path to this library on local machine https://github.com/TheIncgi/That-s-No-Moon-
 package.path = package.path..";"..UNIT_TEST_LIB_PATH
-package.path = package.path..";.\\tests\\?.lua"
-package.path = package.path..";.\\tests\\loadTests\\?.lua"
-
-do --github actions support
-  local root = os.getenv"GITHUB_WORKSPACE"
-  if root and #root > 0 then
-    package.path = package.path..";"..root.."\\tests\\?.lua"
-    package.path = package.path..";"..root.."\\tests\\loadTests\\?.lua"
-  end
-end
+package.path = package.path..";./tests/?.lua"
+package.path = package.path..";./tests/loadTests/?.lua"
 
 HIDE_PASS = false
 
