@@ -15,7 +15,16 @@ local tests = {
   ["1234"] = 1234,
   ["3 * 4 + 5 * 6"] = 42,
   ["5 * 9 - (-3+1)^2"] = 41,
+  ["2 * (3 * 4)"] = 24,
+  ["(3 * 4) * 2"] = 24,
+  ["4^3^2"] = 262144, --4^9 not 64^2
+  ["20 / 5 / 2"] = 2,
+  ["20 / (5 / 2)"] = 8,
   ["t.add( 3,4 )"] = 7,
+  ["10 + t.add( 5*6, 20/5 ) - 4"] = 40,
+  ["10 - 5 == 20 / 4"] = true,
+  ["10 .. 1 * 3"] = "103",
+  ["1 * 3 .. 10"] = "310",
 }
 
 -----------------------------------------------------------------
@@ -129,7 +138,7 @@ do
       return results[1].value
     end)
 
-    test:var_eq(1, expected, "Expression "..expression.." expected a value of "..expected..", but got $1")
+    test:var_eq(1, expected, "Expression "..expression.." expected a value of "..tostring(expected)..", but got $1")
   end
 
 end
