@@ -232,7 +232,7 @@ Loader._patterns = {
 		bin="^0b[01]+$"
 	},
 	var = { "^[a-zA-Z_][a-zA-Z0-9_]*$" },
-	op = { "^[()%{%}%[%]%%.%!%#%^%*%/%+%-%=%~%&|;,%<%>]+$" }
+	op = { "^[()%{%}%[%]%%.%!%#%^%*%/%+%-%=%~%&|:;,%<%>]+$" }
 }
 
 Loader._ops = {
@@ -246,6 +246,7 @@ Loader._ops = {
 	["}"] = -10,
 	--access
 	["."] = 9,
+	[":"] = 9,
 	--not,len
   ["not"] = 8,
 	-- ["!"] = 8,
@@ -1199,7 +1200,7 @@ function Loader._generatePostfix( infix )
           or ((opStack[#opStack].value == "(" or opStack[#opStack].value == "[" or opStack[#opStack].value == "{") and (
               token.value ~= ")" and token.value ~= "]" and token.value~= "}"
             )) then
-              while #opStack > 0 and opStack[#opStack].value == "." do --happens before () sets
+              while #opStack > 0 and (opStack[#opStack].value == "." or opStack[#opStack].value == ":") do --happens before () sets
                 table.insert(out, table.remove(opStack))
               end
             table.insert(opStack, token)
@@ -1357,14 +1358,23 @@ function Loader.callFunc( func, args, callback )
   end
 end
 
-function Loader._initalizeTable( tableToken, scope, line )
+function Loader.newTable()
   local newTable = {}
-  local var = Loader._val(newTable)
+  local val = Loader._val(newTable)
   local indexer = {}
-  Loader.tableIndexes[newTable] = indexer
-  setmetatable(indexer, {
-    __mode = "v"
-  })
+  Loader.tableIndexes[newTable] = indexer,
+  setmetatable(indexer, {__mode = "v"})
+  return val, newTable, indexer
+end
+
+function Loader.assignToTable( tableValue, keyValue, valueValue )
+  tableValue.value[keyValue] = valueValue
+  Loader.tableIndexes[tableValue.value][keyValue.value] = keyValue
+end
+
+function Loader._initalizeTable( tableToken, scope, line )
+  local var, newTable, indexer = Loader.newTable()
+  
   local key
   return Async.insertTasks(Async.forEach("_initalizeTable", function(i, entry)
     Async.insertTasks({
@@ -1408,6 +1418,15 @@ function Loader.eval( postfix, scope, line )
             func = args
             args = Loader._varargs()
           end
+
+          if func.type == "self" then
+            if args.type ~= "varargs" then
+              args = Loader._varargs( args )
+            end
+            args.value = func
+            table.insert(args.varargs, 1, func)
+            func = pop(stack, scope, line)
+          end
           
           if func.type ~= "function" then
             error("attempt to call "..func.type.." on line "..token.line)
@@ -1419,6 +1438,9 @@ function Loader.eval( postfix, scope, line )
 
         elseif token.value == "." then --TODO use b.name not [b]
           local b, a = table.remove(stack), pop(stack, scope, line)
+          if a.type == "str" then
+            a = scope:getRootScope():get("string")
+          end
           if a.type ~= "table" then
             error("attempt to index "..a.type.." on line "..token.line)
           end
@@ -1427,9 +1449,25 @@ function Loader.eval( postfix, scope, line )
             error("internal error: missing table index from table on line "..token)
           else
             local k = indexer[b.value]
-            table.insert(stack, a.value[b] or a.value[k])
+            table.insert(stack, a.value[b] or a.value[k] or Loader.constants["nil"])
           end
-
+        elseif token.value == ":" then
+          local b, a = table.remove(stack), pop(stack, scope, line)
+          local selfVal = a
+          if a.type == "str" then
+            a = scope:getRootScope():get("string")
+          end
+          if a.type ~= "table" then
+            error("attempt to index "..a.type.." on line "..token.line)
+          end
+          local indexer = Loader.tableIndexes[a.value]
+          if not indexer then
+            error("internal error: missing table index from table on line "..token)
+          else
+            local k = indexer[b.value]
+            table.insert(stack, a.value[b] or a.value[k] or Loader.constants["nil"])
+            table.insert(stack, val(selfVal.value, "self"))
+          end
         elseif token.value == "not" then
           local a = pop(stack, scope, line)
           if a.type == "function" then
@@ -1567,8 +1605,8 @@ function Loader.eval( postfix, scope, line )
           else
             table.insert( stack, Loader._varargs(a,b) )
           end
-        elseif token.value == ":" then
-          error"this token should be expanded in a previous step before evaluation"
+        
+          
 
         elseif token.value == "%" then
           local b, a = pop(stack, scope, line), pop(stack, scope, line)
@@ -1610,17 +1648,19 @@ function Loader.eval( postfix, scope, line )
     {
       label = "eval-expand-varargs",
       func = function()
+        --var -> value
         for i=1, #stack do
           if stack[i].type == "var" then
             stack[i] = scope:get( stack[i].value )
           end
         end
+        
+        for i=1, #stack-1 do
+          stack[i].varargs = nil
+        end
 
         if #stack > 0 and stack[#stack].varargs then
           local varargs = table.remove(stack).varargs
-          for i=1, #stack-1 do
-            stack[i].varargs = nil
-          end
           for i=1,#varargs do
             table.insert(stack, varargs[i])
           end
@@ -1672,14 +1712,18 @@ function Scope:set(isLocal, name, value)
   end
 end
 
-function Scope:setNativeFunc( name, func, unpacker, packer )
-  self:set(false, name, {
+function Scope:makeNativeFunc( name, func, unpacker, packer )
+  return {
     type = "function",
     unpacker = unpacker ~= false and (unpacker or Loader.UNPACKER) or false,
     packer = packer ~= false and (packer or Loader.PACKER) or false,
     value = func,
     name = name
-  })
+  }
+end
+
+function Scope:setNativeFunc( name, func, unpacker, packer )
+  self:set(false, name, self:makeNativeFunc( name, func, unpacker, packer ))
 end
 
 function Scope:get(name)
@@ -1690,6 +1734,14 @@ function Scope:get(name)
     return self.parent:get(name)
   end
   return Loader.constants["nil"]
+end
+
+function Scope:getRootScope()
+  local s = self
+  while s.parent do
+    s =  s.parent
+  end
+  return s
 end
 
 function Scope:captureLocals(fenv)
@@ -1750,6 +1802,24 @@ function Scope:addGlobals()
   self:setNativeFunc( "pairs",    pairs, function( fArgs )
     fArgs[1] = fArgs[1].value
   end, false )
+
+  local mathModule = Loader.newTable()
+  for name, func in pairs( math ) do
+    if type(func) == "function" then
+      local nf = self:makeNativeFunc( name, func )
+      Loader.assignToTable( mathModule, Loader._val(name), nf )
+    else
+      Loader.assignToTable( mathModule, Loader._val(name), Loader._val(func)) --pi, e, huge...
+    end
+  end
+  self:set(false, "math", mathModule)
+
+  local strModule = Loader.newTable()
+  for name, func in pairs( string ) do
+    local nf = self:makeNativeFunc( name, func )
+    Loader.assignToTable( strModule, Loader._val(name), nf )
+  end
+  self:set(false, "string", strModule)
   -- self:setNativeFunc( "",  )
 end
 
