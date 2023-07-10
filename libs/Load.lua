@@ -1803,6 +1803,9 @@ function Scope:addGlobals()
     fArgs[1] = fArgs[1].value
   end, false )
 
+  ---------------------------------------------------------
+  -- math
+  ---------------------------------------------------------
   local mathModule = Loader.newTable()
   for name, func in pairs( math ) do
     if type(func) == "function" then
@@ -1813,13 +1816,48 @@ function Scope:addGlobals()
     end
   end
   self:set(false, "math", mathModule)
-
+  
+  ---------------------------------------------------------
+  -- string
+  ---------------------------------------------------------
   local strModule = Loader.newTable()
   for name, func in pairs( string ) do
     local nf = self:makeNativeFunc( name, func )
     Loader.assignToTable( strModule, Loader._val(name), nf )
   end
   self:set(false, "string", strModule)
+  ---------------------------------------------------------
+  -- table
+  ---------------------------------------------------------
+  local tblModule = Loader.newTable()
+  
+  Loader.assignToTable( tblModule, "remove", self:makeNativeFunc( "remove", table.remove, nil, false ) ) --table and index are unpacked, returned value is already wrapped
+  
+  Loader.assignToTable( tblModule, "pack", self:makeNativeFunc( "pack", function(...)
+    local out = Loader.newTable()
+    for i, v in ipairs{...} do
+      Loader.assignToTable( Loader._val(i), v )
+    end
+    return out
+  end, false, false ))
+  
+  Loader.assignToTable( tblModule, "concat", self:makeNativeFunc( "concat", function(tbl, joiner, i, j)
+    local unpacked = {}
+    if i then i = i.value end
+    if j then j = j.value end
+    for index, v in ipairs( tbl ) do
+      unpacked[index] = v.value
+    end
+    return table.concat(unpacked, joiner.value, i, j)
+  end, false, false ))
+  L
+  oader.assignToTable( tblModule, "sort", self:makeNativeFunc("sort", function(tbl, aIsBeforeB)
+    --TODO heap sort
+  end),false, false )
+  --insert, unpack
+  
+  -- self:setNativeFunc( "",  )
+  -- self:setNativeFunc( "",  )
   -- self:setNativeFunc( "",  )
 end
 
