@@ -1805,8 +1805,12 @@ function Scope:addGlobals()
 
   local mathModule = Loader.newTable()
   for name, func in pairs( math ) do
-    local nf = self:makeNativeFunc( name, func )
-    Loader.assignToTable( mathModule, Loader._val(name), nf )
+    if type(func) == "function" then
+      local nf = self:makeNativeFunc( name, func )
+      Loader.assignToTable( mathModule, Loader._val(name), nf )
+    else
+      Loader.assignToTable( mathModule, Loader._val(name), Loader._val(func)) --pi, e, huge...
+    end
   end
   self:set(false, "math", mathModule)
 

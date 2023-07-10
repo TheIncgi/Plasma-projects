@@ -9,7 +9,8 @@ local tests = {
   "LoadTest",
   "FunctionTests",
   "OrderOfOps",
-  "StringModule"
+  "StringModule",
+  "MathModule",
 }
 
 local totalPassed = 0
