@@ -1831,9 +1831,9 @@ function Scope:addGlobals()
   ---------------------------------------------------------
   local tblModule = Loader.newTable()
   
-  Loader.assignToTable( tblModule, "remove", self:makeNativeFunc( "remove", table.remove, nil, false ) ) --table and index are unpacked, returned value is already wrapped
+  Loader.assignToTable( tblModule, Loader._val("remove"), self:makeNativeFunc( "remove", table.remove, nil, false ) ) --table and index are unpacked, returned value is already wrapped
   
-  Loader.assignToTable( tblModule, "pack", self:makeNativeFunc( "pack", function(...)
+  Loader.assignToTable( tblModule, Loader._val("pack"), self:makeNativeFunc( "pack", function(...)
     local out = Loader.newTable()
     for i, v in ipairs{...} do
       Loader.assignToTable( Loader._val(i), v )
@@ -1841,7 +1841,7 @@ function Scope:addGlobals()
     return out
   end, false, false ))
   
-  Loader.assignToTable( tblModule, "concat", self:makeNativeFunc( "concat", function(tbl, joiner, i, j)
+  Loader.assignToTable( tblModule, Loader._val("concat"), self:makeNativeFunc( "concat", function(tbl, joiner, i, j)
     local unpacked = {}
     if i then i = i.value end
     if j then j = j.value end
@@ -1850,16 +1850,202 @@ function Scope:addGlobals()
     end
     return table.concat(unpacked, joiner.value, i, j)
   end, false, false ))
-  L
-  oader.assignToTable( tblModule, "sort", self:makeNativeFunc("sort", function(tbl, aIsBeforeB)
-    --TODO heap sort
-  end),false, false )
-  --insert, unpack
+  
+  Loader.assignToTable( tblModule, Loader._val("sort"), self:makeNativeFunc("sort", function(tbl, aIsBeforeB)
+    Loader._heapSort( tbl, aIsBeforeB )
+    return tbl
+  end, false, false ))
+
+  Loader.assignToTable( tblModule, Loader._val("insert"), self:makeNativeFunc("insert", function(tbl, x, y)
+    local indexer = Loader.tableIndexes[tbl.value]
+    local N = #indexer
+    if y then
+      Loader.assignToTable(tbl, Loader._val(N+1), tbl[indexer[N]])
+      for i=#N, x, -1 do
+        local targetKey = indexer[i]
+        local sourceKey = indexer[i-1]
+        if sourceKey then
+          tbl[targetKey] = tbl[sourceKey]
+        end
+      end 
+      indexer[x.value] = y
+    else
+      Loader.assignToTable(tbl, Loader._val(N+1), x)
+    end
+  end, false, false))
+
+  Loader.assignToTable( tblModule, Loader._val("unpack"), self:makeNativeFunc("unpack", function (tbl, i, j)
+    local indexer = Loader.tableIndexes[tbl.value]
+    i = i and i.value or 1
+    j = j and j.value or #indexer
+    local values = {}
+    for index=i, j, i<j and 1 or -1 do
+      table.insert( values, tbl[ indexer[index] ] )
+    end
+    return Loader._varargs( table.unpack(values) )
+  end, false, false))
   
   -- self:setNativeFunc( "",  )
-  -- self:setNativeFunc( "",  )
-  -- self:setNativeFunc( "",  )
 end
+
+------------------
+--Heap sort
+--with help from GPT
+--Async by me
+------------------
+-- function Loader._heapSort(tbl, aIsBeforeB)
+--   local heapify
+--   local siftDown
+
+--   -- Helper function to swap elements in the table
+--   local function swap(arr, i, j)
+--     arr[i], arr[j] = arr[j], arr[i]
+--   end
+
+--   -- Heapify the table
+--   heapify = function(arr, n, i)
+--     local largest = i
+--     local left = 2 * i
+--     local right = 2 * i + 1
+
+--     if left <= n and not aIsBeforeB(arr[left], arr[largest]) then
+--       largest = left
+--     end
+
+--     if right <= n and not aIsBeforeB(arr[right], arr[largest]) then
+--       largest = right
+--     end
+
+--     if largest ~= i then
+--       swap(arr, i, largest)
+--       heapify(arr, n, largest)
+--     end
+--   end
+
+--   -- Perform sift-down operation on the table
+--   siftDown = function(arr, n)
+--     local i = math.floor(n / 2)
+
+--     while i >= 1 do
+--       heapify(arr, n, i)
+--       i = i - 1
+--     end
+
+--     i = n
+
+--     while i > 1 do
+--       swap(arr, 1, i)
+--       heapify(arr, i - 1, 1)
+--       i = i - 1
+--     end
+--   end
+
+--   -- Perform heap sort
+--   siftDown(tbl, #tbl)
+
+--   return tbl
+-- end
+
+function Loader._heapSort(tbl, aIsBeforeB)
+  local heapify
+  local siftDown
+
+  -- Helper function to swap elements in the table
+  local function swap(arr, i, j)
+    arr[i], arr[j] = arr[j], arr[i]
+  end
+
+  -- Heapify the table
+  heapify = function(arr, n, i)
+    local largest = i
+    local left = 2 * i
+    local right = 2 * i + 1
+    Async.insertTasks(
+      {
+        label = "heapSort:largest-left",
+        func = function()
+          if left <= n then
+            Async.insertTasks({
+              label = "heapSort:compare-left",
+              func = function()
+                local args = Loader._varargs( arr[left], arr[largest] )
+                Loader.callFunc( aIsBeforeB, args, function(result)
+                  if result.value then
+                    largest = left.value
+                  end
+                end)
+              end
+            })
+          end
+          return true --task complete
+        end
+      },{
+        label = "heapSort:largest-right",
+        func = function()
+          if right <= n then
+            Async.insertTasks(
+              {
+                label = "heapSort:compare-right",
+                func = function()
+                  local args = Loader._varargs( arr[right], arr[largest] )
+                  Loader.callFunc( aIsBeforeB, args, function(result)
+                    if result.value then
+                      largest = right
+                    end
+                  end)
+                end
+              }
+            )
+          end
+          return true --task complete         
+        end
+      },{
+        label = "heapSort:swap&recurse",
+        func = function()
+          if largest ~= i then
+            swap(arr, i, largest)
+            heapify(arr, n, largest)
+          end
+          return true --task complete
+        end
+      }
+    )
+  end --end heapify
+
+  -- Perform sift-down operation on the table
+  siftDown = function(arr, n)
+    local i = math.floor(n / 2)
+
+    Async.insertTasks(
+      Async.whileLoop("heapSort:siftDown-while1",function() return i >= 1 end, function()
+        heapify(arr, n, i)
+        i = i - 1
+      end),
+      {
+        label = "heapSort:i=n",
+        func = function()
+          i = n
+          return true --task complete
+        end
+      },
+      Async.whileLoop("heapSort:siftDown-while2", function() return i > 1 end, function()
+        swap(arr, 1, i)
+        heapify(arr, i - 1, 1)
+        i = i - 1
+      end),
+      Async.RETURN(tbl)
+    )
+  end
+
+  -- Perform heap sort
+  siftDown(tbl, #tbl)
+
+  --return tbl
+end
+------------------
+--End Heap sort
+------------------
+
 
 --index may be nil
 function Loader._appendCallEnv( callStack, name, line, index, env )
