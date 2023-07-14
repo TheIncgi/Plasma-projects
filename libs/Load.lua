@@ -463,9 +463,13 @@ function Loader.cleanupTokens( tokens )
           infoToken.value = -infoToken.value
           index = index-1
         end
+
+      elseif token == "true" or token == "false" then
+        infoToken.type = "boolean"
+        infoToken.value = token == "true"
       
       elseif tokenType == "op" or (tokenType=="keyword" and token == "in") then
-        if (token == "=" or token == "in") and prior then
+        if (token == "=" or token == "in") and (prior and prior.type == "var") then
           local newToken = {
             type = "assignment-set",
             token = token,
@@ -474,9 +478,11 @@ function Loader.cleanupTokens( tokens )
           }
           tokens[index-1] = newToken
           
-          while twicePrior and twicePrior.type == "op" and (twicePrior.value == "," or twicePrior.value == ".") do
+          while twicePrior and twicePrior.type == "op" and (twicePrior.value == "," or twicePrior.value == ".") 
+          and (tokens[index-3].type=="var") do
             local op = table.remove( tokens, index-2 ) -- , or .
             local v = table.remove( tokens, index-3) --____. or ____,
+            
             index = index - 2
             if op.value == "," then
               table.insert(newToken.value, 1, v)
@@ -487,7 +493,7 @@ function Loader.cleanupTokens( tokens )
           end
           table.remove(tokens, index)
           return --continue
-        elseif token == "(" or token == "{" then -- " doesn't"
+        elseif token == "(" or token == "{" then -- " doesn't
           if prior and (
               (prior.type == "var")
             or (prior.type == "op" and (prior.value == ")" or prior.value == "]" or prior.value == "}"))
@@ -498,6 +504,13 @@ function Loader.cleanupTokens( tokens )
             end
           elseif prior and prior.type == "keyword" and prior.value == "function" then
             prior.inlineFunc = true
+          end
+        elseif token == "[" then
+          if prior and ( (prior.type == "var") or (prior.type == "op" and prior.value == "]") ) then
+            infoToken.index = true
+            if tokens[index+1] == "]" then
+              error("index expected for [] on line "..line)
+            end
           end
         end
       elseif tokenType=="keyword" then
@@ -569,8 +582,12 @@ function Loader._readTable( tokens, start )
       end
 
       if token.value == "[" then
-        local infix, nextIndex = Loader._collectExpression( tokens, index+1, false, token.line, true )
+        local infix, nextIndex = Loader._collectExpression( tokens, index+1, false, token.line, true, true )
         key = infix
+        if tokens[nextIndex].value ~= "]" then
+          error("']' expected in table near line "..token.line)
+        end
+        nextIndex = nextIndex + 1
         if tokens[nextIndex].value ~= "=" then
           error("'=' expected in table near line "..token.line)
         end
@@ -587,7 +604,7 @@ function Loader._readTable( tokens, start )
           local v = infix
           table.insert( tableInit, {line = line, infix = {key=k, value=v}} )
         end
-        key = {{type="str", value = token.value[ #token.value ]}}
+        key = {{type="str", value = token.value[ #token.value ].value}}
         index = index + 1
       else
         N = N + 1
@@ -698,14 +715,14 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma,
       elseif token.type == "op" then
         if token.value == ")" or token.value == "}" or token.value == "]" then
           local topBracket = table.remove(brackets)
-          if tableMode and token.value == "}" and not topBracket then
+          if tableMode and (token.value == "}" or token.value == "]") and not topBracket then
             return {index}
           end
           if token.value ~= Loader._closePar(topBracket.value) then
             error("Mis-matched brackets opening with "..topBracket.value.." on line "..topBracket.line.." and "..token.value.." on line"..token.line)
           end
           -- requiresValue = false again
-        elseif token.call then
+        elseif token.call or token.index then
           if token.value == "{" or token.value == "(" or token.value=="[" then
             table.insert(brackets, token)
             if token.empty then
@@ -1216,7 +1233,7 @@ function Loader._generatePostfix( infix )
               error("postfix conversion failed, missing (),{} or [], this error should have been caught by an eariler step in the compiler...")
             end
             local par = table.remove(opStack) --pop ([{
-            if par.call then
+            if par.call or par.index then
               table.insert( out, par )
             end
           else
@@ -1395,7 +1412,7 @@ function Loader._initalizeTable( tableToken, scope, line )
         return true
       end
     })
-    Loader.eval( entry.postfix.value, scope, line )
+    Loader.eval( entry.postfix.key, scope, line )
 
   end, ipairs, tableToken.init), 
   Async.RETURN("_initalizeTable", var))
@@ -1403,6 +1420,7 @@ end
 
 function Loader.eval( postfix, scope, line )
   if not postfix then error("expected postfix",2) end
+  if not scope then error("scope expected for arg 2",2) end
   local stack = {}
   local pop = Loader._popVal
   local val = Loader._val
@@ -1436,7 +1454,23 @@ function Loader.eval( postfix, scope, line )
             table.insert( stack, result )
           end)
 
-        elseif token.value == "." then --TODO use b.name not [b]
+        elseif token.index then
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "str" then
+            a = scope:getRootScope():get("string")
+          end
+          if a.type ~= "table" then
+            error("attempt to index "..a.type.." on line "..token.line)
+          end
+          local indexer = Loader.tableIndexes[a.value]
+          if not indexer then
+            error("internal error: missing table index from table on line "..token)
+          else
+            local k = indexer[b.value]
+            table.insert(stack, a.value[b] or a.value[k] or Loader.constants["nil"])
+          end
+
+        elseif token.value == "." then
           local b, a = table.remove(stack), pop(stack, scope, line)
           if a.type == "str" then
             a = scope:getRootScope():get("string")
@@ -1629,7 +1663,7 @@ function Loader.eval( postfix, scope, line )
             return true --task complete
           end
         })
-        Loader._initalizeTable( token )
+        Loader._initalizeTable( token, scope, line )
       elseif token.type == "keyword" and token.op == "function" then
           local locals = scope:captureLocals()
           local fenv = Scope:new("fenv: "..token.name, token.line, scope, index, locals)

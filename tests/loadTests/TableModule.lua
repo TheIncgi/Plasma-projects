@@ -13,7 +13,7 @@ local tester = Tester:new()
 -----------------------------------------------------------------
 
 -----------
---       --
+-- table [] --
 -----------
 do
   local env = Env:new()
@@ -22,7 +22,8 @@ do
   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
 
   local src = [=[
-    
+    local t = { "ok" }
+    return t[1]
   ]=]
 
   local test = tester:add("PLACE HOLDER", env, function()
@@ -32,7 +33,30 @@ do
     return results[1].value
   end)
 
-  test:var_eq(1, 2)
+  test:var_eq(1, "ok")
 end
+
+-----------
+--       --
+-----------
+-- do
+--   local env = Env:new()
+--   local common = testUtils.common(env)
+--   local libs = testUtils.libs()
+--   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+--   local src = [=[
+    
+--   ]=]
+
+--   local test = tester:add("PLACE HOLDER", env, function()
+--     local scope = testUtils.newScope(Scope)
+--     local results = testUtils.run(src, scope, Loader, Async).varargs
+--     if not results[1] or not results[2] then error"Expected return value" end
+--     return results[1].value
+--   end)
+
+--   test:var_eq(1, 2)
+-- end
 
 return tester
