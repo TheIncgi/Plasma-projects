@@ -1894,15 +1894,17 @@ function Scope:addGlobals()
     local indexer = Loader.tableIndexes[tbl.value]
     local N = #indexer
     if y then
-      Loader.assignToTable(tbl, Loader._val(N+1), tbl[indexer[N]])
-      for i=#N, x, -1 do
+      if N > 0 then
+        Loader.assignToTable(tbl, Loader._val(N+1), tbl[indexer[N]])
+      end
+      for i=N-1, x.value, -1 do
         local targetKey = indexer[i]
         local sourceKey = indexer[i-1]
         if sourceKey then
           tbl[targetKey] = tbl[sourceKey]
         end
       end 
-      indexer[x.value] = y
+      tbl[indexer[x.value]] = y
     else
       Loader.assignToTable(tbl, Loader._val(N+1), x)
     end
@@ -1919,6 +1921,7 @@ function Scope:addGlobals()
     return Loader._varargs( table.unpack(values) )
   end, false, false))
   
+  self:set(false, "table", tblModule)
   -- self:setNativeFunc( "",  )
 end
 
