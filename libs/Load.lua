@@ -1515,7 +1515,7 @@ function Loader.eval( postfix, scope, line )
           if a.value == "function" then
             error("attempt to get the length of a function on line "..token.line)
           end
-          table.insert(stack, val(#a.value))
+          table.insert(stack, val(#Loader.tableIndexes[a.value]))
 
         elseif token.value == "^" then
           local b, a = pop(stack, scope, line), pop(stack, scope, line)
@@ -1895,16 +1895,16 @@ function Scope:addGlobals()
     local N = #indexer
     if y then
       if N > 0 then
-        Loader.assignToTable(tbl, Loader._val(N+1), tbl[indexer[N]])
+        Loader.assignToTable(tbl, Loader._val(N+1), tbl.value[indexer[N]])
       end
       for i=N-1, x.value, -1 do
         local targetKey = indexer[i]
         local sourceKey = indexer[i-1]
         if sourceKey then
-          tbl[targetKey] = tbl[sourceKey]
+          tbl.value[targetKey] = tbl.value[sourceKey]
         end
       end 
-      tbl[indexer[x.value]] = y
+      tbl.value[indexer[x.value]] = y
     else
       Loader.assignToTable(tbl, Loader._val(N+1), x)
     end
