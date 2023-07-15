@@ -5,6 +5,29 @@ local Loader = {}
 local Scope = {}
 local Net = {}
 
+Loader.tableIndexes = {}
+Loader.strings = {}
+Loader.metatables = {}
+
+
+--[table][raw key] -> wrapped key
+setmetatable(Loader.tableIndexes, {
+  __mode = "k"
+})
+
+--["string"] -> {wrapped string}
+setmetatable(Loader.strings, {
+  __mode = "v"
+})
+
+setmetatable(Loader.metatables, {
+  __mode = "v"
+})
+
+------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------
+
 --async
 local threads = {
   [1] = {}
@@ -230,17 +253,7 @@ local range = Async.range
 local RETURN = Async.RETURN
 --=====================================================================================
 
---[table][raw key] -> wrapped key
-Loader.tableIndexes = {}
-setmetatable( Loader.tableIndexes, {
-  __mode = "k"
-})
 
---["string"] -> {wrapped string}
-Loader.strings = {}
-setmetatable(Loader.strings, {
-  __mode = "v"
-})
 
 Loader.keywords = {
   -- ["and"]      = true,
@@ -1444,6 +1457,115 @@ function Loader.assignToTable( tableValue, keyValue, valueValue )
   Loader.tableIndexes[tableValue.value][keyValue.value] = keyValue
 end
 
+function Loader.getTableIndex( tableValue )
+  if tableValue.type ~= "table" then
+    error("expected table, got "..tableValue.type, 2 )
+  end
+  local index = Loader.tableIndexes[ tableValue.value ]
+  if not index then error("internal error, index missing for table") end
+  return index
+end
+
+--async
+function Loader.assignToTableWithEvents( tableValue, keyValue, valueValue )
+  local index = Loader.getTableIndex( tableValue )
+  local k = index[ keyValue.value ]
+  local v = tableValue.value[ keyValue ] or tableValue.value[ k ]
+
+  --exists
+  if v then
+    Loader.assignToTable( tableValue, keyValue, valueValue )
+    return
+  end
+  
+  local __newindex = Loader.getMetaEvent( tableValue, "__newindex" )
+  if __newindex.type == "function" then
+    Loader.callFunc( __newindex, Loader._varargs( tableValue, keyValue, valueValue ), function() end )
+  else
+    Loader.assignToTable( tableValue, keyValue, valueValue )
+  end
+end
+
+function Loader.getMetaEvent( tableValue, eventName )
+  local meta = Loader.getmetatable( tableValue, true )
+  local NIL = Loader.constants["nil"]
+  if meta.type=="nil" then return NIL end
+  local index = Loader.getTableIndex( meta )
+  local k = index[ eventName ]
+  return meta[ k ] or NIL
+end
+
+--async
+function Loader.indexTableWithEvents( tableValue, keyValue, callback, loop )
+  loop = loop or {} --will not protect against loops with functions on __index
+  local LOOP_INDEX = tostring(tableValue.value)..":"..keyValue.type..":"..tostring(keyValue.value)
+  if loop[ LOOP_INDEX ] then
+    error("Cycle detected indexing table")
+  end
+  loop[ LOOP_INDEX ] = true
+  local index = Loader.getTableIndex( tableValue )
+  local k = index[ keyValue.value ]
+  local v = tableValue.value[ keyValue ] or tableValue.value[ k ]
+  if v then
+    callback( v )
+    return
+  end
+  
+  local __index = Loader.getMetaEvent( tableValue, "__index" )
+
+  if __index.type == "function" then
+    Loader.callFunc( __index, Loader._varargs( tableValue, keyValue ), function( values )
+      --only first value is returned
+      callback( values[1] )
+    end )
+  elseif __index.type == "table" then
+    Async.insertTasks({
+      label = "index-with-events-table", func = function()
+        Loader.indexTableWithEvents( __index, keyValue, callback, loop )
+        return true
+      end
+    })
+  else
+    --unsupported __index type
+    callback( NIL )
+  end
+end
+
+--sync
+function Loader.setmetatable( tableValue, metatableValue )
+  local tbl, protected = Loader.getmetatable( tableValue )
+  if protected then
+    error("cannot change a protected metatable")
+  end
+  Loader.metatables[ tableValue.value ] = metatableValue.value
+end
+
+--sync
+--returns table/nil, protected
+function Loader.getmetatable( tableValue, raw )
+  if tableValue.type ~= "table" then
+    error("getmetatable requires arg to be table", 2)
+  end
+  local rawMeta = Loader.metatables[ tableValue.value ]
+  
+  if rawMeta == nil then
+    return Loader.constants["nil"], false
+
+  elseif raw then
+    return Loader._val(rawMeta), false
+
+  else
+    local indexer = Loader.tableIndexes[ rawMeta ]
+    local k = indexer.__metatable
+    local event = rawMeta[k]
+    if event then
+      return event, true
+    else
+      return Loader.getmetatable( tableValue, true )
+    end
+  end
+end
+
 function Loader._initalizeTable( tableToken, scope, line )
   local var, newTable, indexer = Loader.newTable()
   
@@ -1509,6 +1631,13 @@ function Loader.eval( postfix, scope, line )
             func = pop(stack, scope, line)
           end
           
+          if func.type == "table" then
+            local __call = Loader.getMetaEvent( func, "__call" )
+            if __call and __call.type=="function" then
+              func = __call
+            end
+          end
+
           if func.type ~= "function" then
             error("attempt to call "..func.type.." on line "..token.line)
           end
@@ -1525,13 +1654,10 @@ function Loader.eval( postfix, scope, line )
           if a.type ~= "table" then
             error("attempt to index "..a.type.." on line "..token.line)
           end
-          local indexer = Loader.tableIndexes[a.value]
-          if not indexer then
-            error("internal error: missing table index from table on line "..token)
-          else
-            local k = indexer[b.value]
-            table.insert(stack, a.value[b] or a.value[k] or Loader.constants["nil"])
-          end
+          
+          Loader.indexTableWithEvents( a, b, function(v)
+            table.insert(stack, v)
+          end )
 
         elseif token.value == "." then
           local b, a = table.remove(stack), pop(stack, scope, line)
@@ -1541,13 +1667,11 @@ function Loader.eval( postfix, scope, line )
           if a.type ~= "table" then
             error("attempt to index "..a.type.." on line "..token.line)
           end
-          local indexer = Loader.tableIndexes[a.value]
-          if not indexer then
-            error("internal error: missing table index from table on line "..token)
-          else
-            local k = indexer[b.value]
-            table.insert(stack, a.value[b] or a.value[k] or Loader.constants["nil"])
-          end
+
+          Loader.indexTableWithEvents( a, b, function(v)
+            table.insert(stack, v)
+          end)
+
         elseif token.value == ":" then
           local b, a = table.remove(stack), pop(stack, scope, line)
           local selfVal = a
@@ -1557,14 +1681,12 @@ function Loader.eval( postfix, scope, line )
           if a.type ~= "table" then
             error("attempt to index "..a.type.." on line "..token.line)
           end
-          local indexer = Loader.tableIndexes[a.value]
-          if not indexer then
-            error("internal error: missing table index from table on line "..token)
-          else
-            local k = indexer[b.value]
-            table.insert(stack, a.value[b] or a.value[k] or Loader.constants["nil"])
+
+          Loader.indexTableWithEvents( a, b, function(v)
+            table.insert(stack, v)
             table.insert(stack, val(selfVal.value, "self"))
-          end
+          end)
+
         elseif token.value == "not" then
           local a = pop(stack, scope, line)
           if a.type == "function" then
