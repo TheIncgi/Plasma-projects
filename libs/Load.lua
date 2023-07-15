@@ -49,8 +49,8 @@ function Async.insertTasks( ... )
 	return t[ #t ] 
 end
 
-function Async.removeTask( func )
-  local tasks = threads[Async.activeThread]
+function Async.removeTask( func, threadID )
+  local tasks = threads[ threadID or  Async.activeThread ]
   for i=1, #tasks do
     if tasks[i] == func then
       table.remove( tasks, i )
@@ -65,6 +65,7 @@ function Async.sync( task )
   --print( "SYNC: "..tostring(task).." | "..task.label )
 	local args = {}
 	while #threads[Async.activeThread] > 0 do
+    local threadOnCall = Async.activeThread
 		local t = threads[Async.activeThread][1]
     --print(" > ", t.label ,sourceLine(t.func), t.func)
 		local value =  t.func( table.unpack(args) ) 
@@ -72,13 +73,13 @@ function Async.sync( task )
 		if value == false then
 			--
 		elseif type(value) == "table" then
-            Async.removeTask( t )
+            Async.removeTask( t, threadOnCall )
       if t == task then
 				return table.unpack( value )
 			end
 			args = value
 		elseif value == true then
-			Async.removeTask( t )
+			Async.removeTask( t, threadOnCall )
       if t == task then
         return
       end
@@ -2021,7 +2022,7 @@ function Scope:addGlobals()
         label = "coroutine-create", func = function( ... ) --receives from `resume` call
           Loader.callFunc( sFunc, Loader._varargs{...}, function( result )
             Async.popThread()
-            Async.insertTasks( Async.RETURN( result ) ) --pass to resume
+            Async.insertTasks( Async.RETURN( "create-return to resume", result ) ) --pass to resume
           end)
           return true -- task done
         end
@@ -2038,7 +2039,7 @@ function Scope:addGlobals()
     
     Async.pushAndSetThread( threadID.value )
     Async.insertTasks( --in thread's tasks
-      Async.RETURN( ... ) --pass args to coroutine
+      Async.RETURN( "resume-pass args", ... ) --pass args to coroutine
     )
   end, false, false))
 
@@ -2048,7 +2049,7 @@ function Scope:addGlobals()
     end
     Async.popThread()
     Async.insertTasks( --in caller of resume's thread
-      Async.RETURN( ... )
+      Async.RETURN( "yield-return values", ... )
     )
   end, false, false))
 

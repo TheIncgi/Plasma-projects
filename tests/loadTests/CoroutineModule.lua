@@ -87,8 +87,8 @@ do
   local test = testUtils.codeTest(tester, "running", env, libs, src)
 
   test:var_eq(1, "thread", "Expected thread from coroutine.running(), got $1")
-  test:var_eq(1, 1, "Expected coroutine.running() to return main thread with id 1, got $1")
-  test:var_eq(1, true, "Expected isMain to be `true`, got $1")
+  test:var_eq(2, 1, "Expected coroutine.running() to return main thread with id 1, got $1")
+  test:var_eq(3, true, "Expected isMain to be `true`, got $1")
 end
 
 -----------------------
