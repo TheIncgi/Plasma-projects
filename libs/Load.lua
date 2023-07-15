@@ -1522,7 +1522,7 @@ function Loader.eval( postfix, scope, line )
           if a.value == "function" then
             error("attempt to get the length of a function on line "..token.line)
           end
-          table.insert(stack, val(#Loader.tableIndexes[a.value]))
+          table.insert(stack, val(#(a.type=="table" and Loader.tableIndexes[a.value] or a.value)))
 
         elseif token.value == "^" then
           local b, a = pop(stack, scope, line), pop(stack, scope, line)

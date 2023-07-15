@@ -328,7 +328,7 @@ do
         sorted = false
       end
     end
-    if not sorted then error("Not sorted: "table.concat(d," | ")) end
+    if not sorted then error("Not sorted: "..table.concat(d," | ")) end
     return #indexer == 6 and sorted
   end)
 
