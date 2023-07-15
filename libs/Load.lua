@@ -1,10 +1,19 @@
 --copied & modified from plasmaNN.lua
 
 local Async = {}
+local Loader = {}
+local Scope = {}
+local Net = {}
 
 --async
-local tasks = {}
-Async.tasks = tasks
+local threads = {
+  [1] = {}
+}
+
+Async.threads = threads
+Async.threadStack = {}
+Async.activeThread = 1
+Async._threadID = 1 --increments then gets
 -----------------
 -- async task rules
 -- return false if not done
@@ -24,7 +33,7 @@ end
 
 -- --sequential
 -- function addTask( func )
--- 	table.insert( tasks, func )
+-- 	table.insert( threads[Async.activeThread], func )
 -- end
 
 --nested
@@ -35,12 +44,13 @@ function Async.insertTasks( ... )
     if type( func ) ~= "table" then error("arg "..i.." is not a table",2) end
     if type( func.label ) ~= "string" then error("arg "..i.." is not labeled",2) end
     if type( func.func ) ~= "function" then error("arg "..i.." is missing func",2) end
-		table.insert( tasks, i, func )
+		table.insert( threads[Async.activeThread], i, func )
 	end
 	return t[ #t ] 
 end
 
 function Async.removeTask( func )
+  local tasks = threads[Async.activeThread]
   for i=1, #tasks do
     if tasks[i] == func then
       table.remove( tasks, i )
@@ -54,8 +64,8 @@ end
 function Async.sync( task )
   --print( "SYNC: "..tostring(task).." | "..task.label )
 	local args = {}
-	while #tasks > 0 do
-		local t = tasks[1]
+	while #threads[Async.activeThread] > 0 do
+		local t = threads[Async.activeThread][1]
     --print(" > ", t.label ,sourceLine(t.func), t.func)
 		local value =  t.func( table.unpack(args) ) 
     args = {}
@@ -154,8 +164,8 @@ local __args = {}
 function Async.loop()
   stepsPerLoop = V2 or 10
   for steps = 1, stepsPerLoop do
-    if #tasks > 0 then
-      local t = tasks[1]
+    if #threads[Async.activeThread] > 0 then
+      local t = threads[Async.activeThread][1]
       --print(" > ", t.label ,sourceLine(t.func), t.func)
       local value =  t.func( table.unpack(__args) ) 
       __args = {}
@@ -173,6 +183,38 @@ function Async.loop()
   end
 end
 
+function Async.newThread()
+  Async._threadID = Async._threadID + 1
+  Async.threads[ Async._threadID ] = {}
+  return Async._threadID
+end
+
+function Async.pushAndSetThread( switchTo )
+  table.insert( Async.threadStack, Async.activeThread )
+  Async.activeThread = switchTo
+end
+
+function Async.popThread()
+  local old = Async.activeThread
+  Async.activeThread = table.remove( Async.threadStack )
+  if not Async.activeThread then
+    error("yield called from main thread")
+  end
+  return old
+end
+
+function Async.threadStatus( threadID )
+  if not threadID then error("threadID expected",2) end
+  local tasks = Async.threads[ threadID ]
+  if not tasks or #tasks == 0 then
+    return "dead"
+  elseif Async.activeThread == threadID then
+    return "running"
+  else
+    return "suspended"
+  end
+end
+
 local insertTasks = Async.insertTasks
 local forEach = Async.forEach
 local sync = Async.sync
@@ -180,10 +222,6 @@ local removeTask = Async.removeTask
 local range = Async.range
 local RETURN = Async.RETURN
 --=====================================================================================
-
-local Loader = {}
-local Scope = {}
-local Net = {}
 
 --[table][raw key] -> wrapped key
 Loader.tableIndexes = {}
@@ -1844,6 +1882,8 @@ function Scope:addGlobals()
     fArgs[1] = fArgs[1].value
   end, false )
 
+  self:setNativeFunc( "type", function( value ) return value.type end, false, nil)
+
   ---------------------------------------------------------
   -- math
   ---------------------------------------------------------
@@ -1953,6 +1993,70 @@ function Scope:addGlobals()
     Loader.assignToTable( bitModule, Loader._val(name), self:makeNativeFunc(name, func))
   end
   self:set(false, "bit32", bitModule)
+
+  ---------------------------------------------------------
+  -- coroutine
+  ---------------------------------------------------------
+  local coroutineModule = Loader.newTable()
+  Loader.assignToTable( coroutineModule, Loader._val("create"), self:makeNativeFunc("create", function( sFunc )
+    if sFunc.type ~= "function" then
+      error("arg 1 must be of type function for coroutine.create, got "..(sFunc.type))
+    end
+    local originalThread = Async.activeThread
+    local id = Async.newThread()
+    Async.pushAndSetThread( id )
+    Async.insertTasks(
+      {
+        label = "coroutine-create", func = function( ... ) --receives from `resume` call
+          Loader.callFunc( sFunc, Loader._varargs{...}, function( result )
+            Async.popThread()
+            Async.insertTasks( Async.RETURN( result ) ) --pass to resume
+          end)
+          return true -- task done
+        end
+      }
+    )
+    Async.popThread()
+    return Loader._val( id, "thread" )
+  end, false, false))
+
+  Loader.assignToTable( coroutineModule, Loader._val("resume"), self:makeNativeFunc("resume", function( threadID, ... )
+    if threadID.type ~= "thread" then
+      error("Expected thread for arg 1 of coroutine.resume, got "..threadID.type)
+    end
+    
+    Async.pushAndSetThread( threadID.value )
+    Async.insertTasks( --in thread's tasks
+      Async.RETURN( ... ) --pass args to coroutine
+    )
+  end, false, false))
+
+  Loader.assignToTable( coroutineModule, Loader._val("yield"), self:makeNativeFunc("yield", function(...) --stuff to pass to resume
+    if Async.activeThread == 1 then
+      error("Can't yield on main thread!")
+    end
+    Async.popThread()
+    Async.insertTasks( --in caller of resume's thread
+      Async.RETURN( ... )
+    )
+  end, false, false))
+
+  Loader.assignToTable( coroutineModule, Loader._val("status"), self:makeNativeFunc("status", function(threadID) --stuff to pass to resume
+    if threadID.type ~= "thread" then
+      error("Expected thread for arg 1 of coroutine.resume, got "..threadID.type)
+    end
+    return Async.threadStatus( threadID.value  )
+  end, false, nil))
+
+  Loader.assignToTable( coroutineModule, Loader._val("running"), self:makeNativeFunc("running", function() --stuff to pass to resume
+    return Loader._val( Async.activeThread, "thread" ), Loader._val( Async.activeThread == 1 )
+  end, false, false))
+
+  Loader.assignToTable( coroutineModule, Loader._val("wrap"), self:makeNativeFunc("wrap", function() --stuff to pass to resume
+    error("feature requires metatables to be implemented!") --TODO
+  end, false, false))
+
+  self:set(false, "coroutine", coroutineModule)
   -- self:setNativeFunc( "",  )
 end
 

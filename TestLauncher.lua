@@ -14,6 +14,7 @@ local tests = {
   "BasicTable",
   "TableModule",
   "Bit32Module",
+  "CoroutineModule",
 }
 
 local totalPassed = 0
