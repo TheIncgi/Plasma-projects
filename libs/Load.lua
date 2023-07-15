@@ -2049,7 +2049,7 @@ function Scope:addGlobals()
     end
     Async.popThread()
     Async.insertTasks( --in caller of resume's thread
-      Async.RETURN( "yield-return values", ... )
+      Async.RETURN( "yield-return values", {...} ) --stack of values 
     )
   end, false, false))
 
