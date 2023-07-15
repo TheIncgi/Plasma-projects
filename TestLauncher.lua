@@ -11,6 +11,8 @@ local tests = {
   "OrderOfOps",
   "StringModule",
   "MathModule",
+  "BasicTable",
+  "TableModule",
 }
 
 local totalPassed = 0

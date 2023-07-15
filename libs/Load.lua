@@ -463,9 +463,13 @@ function Loader.cleanupTokens( tokens )
           infoToken.value = -infoToken.value
           index = index-1
         end
+
+      elseif token == "true" or token == "false" then
+        infoToken.type = "boolean"
+        infoToken.value = token == "true"
       
       elseif tokenType == "op" or (tokenType=="keyword" and token == "in") then
-        if (token == "=" or token == "in") and prior then
+        if (token == "=" or token == "in") and (prior and prior.type == "var") then
           local newToken = {
             type = "assignment-set",
             token = token,
@@ -474,9 +478,11 @@ function Loader.cleanupTokens( tokens )
           }
           tokens[index-1] = newToken
           
-          while twicePrior and twicePrior.type == "op" and (twicePrior.value == "," or twicePrior.value == ".") do
+          while twicePrior and twicePrior.type == "op" and (twicePrior.value == "," or twicePrior.value == ".") 
+          and (tokens[index-3].type=="var") do
             local op = table.remove( tokens, index-2 ) -- , or .
             local v = table.remove( tokens, index-3) --____. or ____,
+            
             index = index - 2
             if op.value == "," then
               table.insert(newToken.value, 1, v)
@@ -487,7 +493,7 @@ function Loader.cleanupTokens( tokens )
           end
           table.remove(tokens, index)
           return --continue
-        elseif token == "(" or token == "{" then -- " doesn't"
+        elseif token == "(" or token == "{" then -- " doesn't
           if prior and (
               (prior.type == "var")
             or (prior.type == "op" and (prior.value == ")" or prior.value == "]" or prior.value == "}"))
@@ -498,6 +504,13 @@ function Loader.cleanupTokens( tokens )
             end
           elseif prior and prior.type == "keyword" and prior.value == "function" then
             prior.inlineFunc = true
+          end
+        elseif token == "[" then
+          if prior and ( (prior.type == "var") or (prior.type == "op" and prior.value == "]") ) then
+            infoToken.index = true
+            if tokens[index+1] == "]" then
+              error("index expected for [] on line "..line)
+            end
           end
         end
       elseif tokenType=="keyword" then
@@ -569,8 +582,12 @@ function Loader._readTable( tokens, start )
       end
 
       if token.value == "[" then
-        local infix, nextIndex = Loader._collectExpression( tokens, index+1, false, token.line, true )
+        local infix, nextIndex = Loader._collectExpression( tokens, index+1, false, token.line, true, true )
         key = infix
+        if tokens[nextIndex].value ~= "]" then
+          error("']' expected in table near line "..token.line)
+        end
+        nextIndex = nextIndex + 1
         if tokens[nextIndex].value ~= "=" then
           error("'=' expected in table near line "..token.line)
         end
@@ -587,7 +604,7 @@ function Loader._readTable( tokens, start )
           local v = infix
           table.insert( tableInit, {line = line, infix = {key=k, value=v}} )
         end
-        key = {{type="str", value = token.value[ #token.value ]}}
+        key = {{type="str", value = token.value[ #token.value ].value}}
         index = index + 1
       else
         N = N + 1
@@ -691,6 +708,7 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma,
             }
           )
           Loader.buildInstructions(tokens, instStart, token.blockLevel) --returns instructions, nextIndex
+          requiresValue = false
           return --continue into inserted tasks
         else          
           requiresValue = false
@@ -698,14 +716,14 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma,
       elseif token.type == "op" then
         if token.value == ")" or token.value == "}" or token.value == "]" then
           local topBracket = table.remove(brackets)
-          if tableMode and token.value == "}" and not topBracket then
+          if tableMode and (token.value == "}" or token.value == "]") and not topBracket then
             return {index}
           end
           if token.value ~= Loader._closePar(topBracket.value) then
             error("Mis-matched brackets opening with "..topBracket.value.." on line "..topBracket.line.." and "..token.value.." on line"..token.line)
           end
           -- requiresValue = false again
-        elseif token.call then
+        elseif token.call or token.index then
           if token.value == "{" or token.value == "(" or token.value=="[" then
             table.insert(brackets, token)
             if token.empty then
@@ -769,10 +787,16 @@ function Loader._collectExpression( tokens, index, allowAssignment, line, ignore
     error("Missing expression for assignment on line "..line)
   end
   local infix = {}
-  for i=index, endTokenPos-1 do
+  local i = index
+  while i <= endTokenPos-1 do
     table.insert(infix, tokens[i])
     tokens[i].globalIndex = i
     tokens[i].localIndex = #infix
+    if tokens[i].inlineFunc then
+      i = tokens[i].skip
+    else
+      i = i + 1
+    end
   end
 
   return infix, endTokenPos
@@ -1216,7 +1240,7 @@ function Loader._generatePostfix( infix )
               error("postfix conversion failed, missing (),{} or [], this error should have been caught by an eariler step in the compiler...")
             end
             local par = table.remove(opStack) --pop ([{
-            if par.call then
+            if par.call or par.index then
               table.insert( out, par )
             end
           else
@@ -1395,7 +1419,7 @@ function Loader._initalizeTable( tableToken, scope, line )
         return true
       end
     })
-    Loader.eval( entry.postfix.value, scope, line )
+    Loader.eval( entry.postfix.key, scope, line )
 
   end, ipairs, tableToken.init), 
   Async.RETURN("_initalizeTable", var))
@@ -1403,6 +1427,7 @@ end
 
 function Loader.eval( postfix, scope, line )
   if not postfix then error("expected postfix",2) end
+  if not scope then error("scope expected for arg 2",2) end
   local stack = {}
   local pop = Loader._popVal
   local val = Loader._val
@@ -1436,7 +1461,23 @@ function Loader.eval( postfix, scope, line )
             table.insert( stack, result )
           end)
 
-        elseif token.value == "." then --TODO use b.name not [b]
+        elseif token.index then
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "str" then
+            a = scope:getRootScope():get("string")
+          end
+          if a.type ~= "table" then
+            error("attempt to index "..a.type.." on line "..token.line)
+          end
+          local indexer = Loader.tableIndexes[a.value]
+          if not indexer then
+            error("internal error: missing table index from table on line "..token)
+          else
+            local k = indexer[b.value]
+            table.insert(stack, a.value[b] or a.value[k] or Loader.constants["nil"])
+          end
+
+        elseif token.value == "." then
           local b, a = table.remove(stack), pop(stack, scope, line)
           if a.type == "str" then
             a = scope:getRootScope():get("string")
@@ -1481,7 +1522,7 @@ function Loader.eval( postfix, scope, line )
           if a.value == "function" then
             error("attempt to get the length of a function on line "..token.line)
           end
-          table.insert(stack, val(#a.value))
+          table.insert(stack, val(#(a.type=="table" and Loader.tableIndexes[a.value] or a.value)))
 
         elseif token.value == "^" then
           local b, a = pop(stack, scope, line), pop(stack, scope, line)
@@ -1629,7 +1670,7 @@ function Loader.eval( postfix, scope, line )
             return true --task complete
           end
         })
-        Loader._initalizeTable( token )
+        Loader._initalizeTable( token, scope, line )
       elseif token.type == "keyword" and token.op == "function" then
           local locals = scope:captureLocals()
           local fenv = Scope:new("fenv: "..token.name, token.line, scope, index, locals)
@@ -1803,6 +1844,9 @@ function Scope:addGlobals()
     fArgs[1] = fArgs[1].value
   end, false )
 
+  ---------------------------------------------------------
+  -- math
+  ---------------------------------------------------------
   local mathModule = Loader.newTable()
   for name, func in pairs( math ) do
     if type(func) == "function" then
@@ -1813,15 +1857,196 @@ function Scope:addGlobals()
     end
   end
   self:set(false, "math", mathModule)
-
+  
+  ---------------------------------------------------------
+  -- string
+  ---------------------------------------------------------
   local strModule = Loader.newTable()
   for name, func in pairs( string ) do
     local nf = self:makeNativeFunc( name, func )
     Loader.assignToTable( strModule, Loader._val(name), nf )
   end
   self:set(false, "string", strModule)
+  ---------------------------------------------------------
+  -- table
+  ---------------------------------------------------------
+  local tblModule = Loader.newTable()
+  
+  Loader.assignToTable( tblModule, Loader._val("remove"), self:makeNativeFunc("remove",function(tbl, index)
+    local indexer = Loader.tableIndexes[ tbl.value ]
+    if not indexer then
+      error("internal error, missing table index durring remove operation")
+    end
+    local k = indexer[index.value]
+    if not k then
+      return Loader.constants["nil"]
+    end
+    local r = tbl.value[k]
+    tbl.value[k] = nil
+    table.remove(indexer, index.value)
+    return r
+  end, false, false) )
+  
+  Loader.assignToTable( tblModule, Loader._val("pack"), self:makeNativeFunc( "pack", function(...)
+    local out = Loader.newTable()
+    for i, v in ipairs{...} do
+      Loader.assignToTable( out, Loader._val(i), v )
+    end
+    Loader.assignToTable( out, Loader._val"n", Loader._val(select("#",...)))
+    return out
+  end, false, false ))
+  
+  Loader.assignToTable( tblModule, Loader._val("concat"), self:makeNativeFunc( "concat", function(tbl, joiner, i, j)
+    local unpacked = {}
+    local indexer = Loader.tableIndexes[tbl.value]
+    i = i and i.value or 1
+    j = j and j.value or #indexer
+    if not indexer then error("internal error, missing table index durring table.concat opperation") end
+    for I = i, math.min(j,#indexer) do
+      unpacked[I-i+1] = tbl.value[ indexer[I] ].value
+    end
+    return Loader._val( table.concat(unpacked, joiner and joiner.value) )
+  end, false, false ))
+  
+  Loader.assignToTable( tblModule, Loader._val("sort"), self:makeNativeFunc("sort", function(tbl, aIsBeforeB)
+    Loader._heapSort( tbl, aIsBeforeB )
+  end, false, false ))
+
+  Loader.assignToTable( tblModule, Loader._val("insert"), self:makeNativeFunc("insert", function(tbl, x, y)
+    local indexer = Loader.tableIndexes[tbl.value]
+    local N = #indexer
+    if y then
+      if N > 0 then
+        Loader.assignToTable(tbl, Loader._val(N+1), tbl.value[indexer[N]])
+      end
+      for i=N-1, x.value, -1 do
+        local targetKey = indexer[i]
+        local sourceKey = indexer[i-1]
+        if sourceKey then
+          tbl.value[targetKey] = tbl.value[sourceKey]
+        end
+      end 
+      tbl.value[indexer[x.value]] = y
+    else
+      Loader.assignToTable(tbl, Loader._val(N+1), x)
+    end
+  end, false, false))
+
+  Loader.assignToTable( tblModule, Loader._val("unpack"), self:makeNativeFunc("unpack", function (tbl, i, j)
+    local indexer = Loader.tableIndexes[tbl.value]
+    i = i and i.value or 1
+    j = j and j.value or #indexer
+    local values = {}
+    for index=i, j, i<j and 1 or -1 do
+      table.insert( values, tbl.value[ indexer[index] ] )
+    end
+    return table.unpack(values)
+  end, false, false))
+  
+  self:set(false, "table", tblModule)
   -- self:setNativeFunc( "",  )
 end
+
+------------------
+--Heap sort
+--i is current tree node
+--left/right is child nodes
+------------------
+function Loader._heapSort(tbl, aIsBeforeB)
+  local heapify
+  local buildMaxHeap
+
+  local indexer = Loader.tableIndexes[tbl.value]
+  local N = #indexer
+
+  local function swap(i, j)
+    tbl.value[indexer[i]], tbl.value[indexer[j]] = tbl.value[indexer[j]], tbl.value[indexer[i]]
+  end
+
+  function buildMaxHeap( n )
+    local start = math.floor(n / 2) 
+    Async.insertTasks(
+      --for i=floor(n/2) -> 1
+      --  heapify( tbl, i )
+      Async.forEach("sort-buildMaxHeap", function( i )
+        heapify( i, n )
+      end, Async.range, start, 1, -1 )
+    )
+  end
+
+  function heapify( i, n )
+    local left = 2 * i
+    local right = left + 1
+    local max = i
+
+    -- if( left <= n ) && [left] > [i]
+    --   max = left
+    -- else
+    --   max = i
+    -- end
+    -- if right <=n && [right] > [max]
+    --   max = right
+
+    -- if max ~= i 
+    --   swap (i, max)
+    --   heapify( max )
+    Async.insertTasks(
+      { 
+        label = "sort-checkLeft", func = function()
+          if left <= n then
+            local args = Loader._varargs( tbl.value[indexer[max]], tbl.value[indexer[left]] ) --must do >, so swapped
+            Loader.callFunc( aIsBeforeB, args, function(result)
+              if result.value.value then
+                max = left
+              end
+            end)
+          end
+          return true --task complete
+        end
+      },{
+        label = "sort-checkRight", func = function()
+          if right <= n then
+            local args = Loader._varargs( tbl.value[indexer[max]], tbl.value[indexer[right]] ) --must do >, so swapped
+            Loader.callFunc( aIsBeforeB, args, function(result)
+              if result.value.value then
+                max = right
+              end
+            end)
+          end
+          return true --task complete
+        end
+      },{
+        label = "sort-swap", func = function()
+          if max ~= i then
+            swap( i, max )
+            heapify( max, n )
+          end
+          return true
+        end
+      }
+    )
+  end
+
+  --sort main
+  
+  Async.insertTasks(
+    {
+      label = "sort-init-buildMaxHeap", func = function()
+        buildMaxHeap( N )
+        return true
+      end
+    },
+    Async.forEach("sort-main", function(i)
+        swap( 1, i )
+        heapify( 1, i - 1 )
+    end, Async.range, N, 1, -1),
+    Async.RETURN("sort result", tbl)
+  )
+end
+------------------
+--End Heap sort
+------------------
+
 
 --index may be nil
 function Loader._appendCallEnv( callStack, name, line, index, env )
