@@ -1883,8 +1883,9 @@ function Scope:addGlobals()
   Loader.assignToTable( tblModule, Loader._val("pack"), self:makeNativeFunc( "pack", function(...)
     local out = Loader.newTable()
     for i, v in ipairs{...} do
-      Loader.assignToTable( Loader._val(i), v )
+      Loader.assignToTable( out, Loader._val(i), v )
     end
+    Loader.assignToTable( out, Loader._val"n", Loader._val(select("#",...)))
     return out
   end, false, false ))
   

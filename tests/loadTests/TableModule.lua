@@ -183,7 +183,7 @@ do
     local scope = testUtils.newScope(Scope)
     local results = testUtils.run(src, scope, Loader, Async).varargs
     if not results[1] or not results[2] or not results[3] then error"Expected return values" end
-    return results[1].value, results[2].value, results[3]
+    return results[1].value, results[2].value, results[3].value
   end)
 
   test:var_eq(1, 3, "Expected table length of 3, got $1")
