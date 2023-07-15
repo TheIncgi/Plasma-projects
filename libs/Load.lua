@@ -1865,7 +1865,20 @@ function Scope:addGlobals()
   ---------------------------------------------------------
   local tblModule = Loader.newTable()
   
-  Loader.assignToTable( tblModule, Loader._val("remove"), self:makeNativeFunc( "remove", table.remove, nil, false ) ) --table and index are unpacked, returned value is already wrapped
+  Loader.assignToTable( tblModule, Loader._val("remove"), self:makeNativeFunc("remove",function(tbl, index)
+    local indexer = Loader.tableIndexes[ tbl.value ]
+    if not indexer then
+      error("internal error, missing table index durring remove operation")
+    end
+    local k = indexer[index.value]
+    if not k then
+      return Loader.constants["nil"]
+    end
+    local r = tbl.value[k]
+    tbl.value[k] = nil
+    table.remove(indexer, index.value)
+    return r
+  end, false, false) )
   
   Loader.assignToTable( tblModule, Loader._val("pack"), self:makeNativeFunc( "pack", function(...)
     local out = Loader.newTable()
