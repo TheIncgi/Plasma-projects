@@ -13,6 +13,7 @@ local tests = {
   "MathModule",
   "BasicTable",
   "TableModule",
+  "Bit32Module",
 }
 
 local totalPassed = 0

@@ -23,7 +23,7 @@ function testUtils.newScope(Scope)
   return scope
 end
 
-function testUtls.codeTest(tester, name, env, libs, src, expectedResultCount)
+function testUtils.codeTest(tester, name, env, libs, src, expectedResultCount)
   return tester:add(name, env, function()
     local scope = testUtils.newScope(libs.Scope)
     local results = testUtils.run(src, scope, libs.Loader, libs.Async).varargs
@@ -34,7 +34,7 @@ function testUtls.codeTest(tester, name, env, libs, src, expectedResultCount)
     for i=1,#results do
       tmp[i] = results[i].value
     end
-    return table.unpack(i)
+    return table.unpack(tmp)
   end)
 end
 
