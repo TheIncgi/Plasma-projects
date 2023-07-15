@@ -1891,12 +1891,14 @@ function Scope:addGlobals()
   
   Loader.assignToTable( tblModule, Loader._val("concat"), self:makeNativeFunc( "concat", function(tbl, joiner, i, j)
     local unpacked = {}
-    if i then i = i.value end
-    if j then j = j.value end
-    for index, v in ipairs( tbl ) do
-      unpacked[index] = v.value
+    local indexer = Loader.tableIndexes[tbl.value]
+    i = i and i.value or 1
+    j = j and j.value or #indexer
+    if not indexer then error("internal error, missing table index durring table.concat opperation") end
+    for I = i, math.min(j,#indexer) do
+      unpacked[I-i+1] = tbl.value[ indexer[I] ].value
     end
-    return table.concat(unpacked, joiner.value, i, j)
+    return Loader._val( table.concat(unpacked, joiner and joiner.value) )
   end, false, false ))
   
   Loader.assignToTable( tblModule, Loader._val("sort"), self:makeNativeFunc("sort", function(tbl, aIsBeforeB)
