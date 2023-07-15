@@ -1266,6 +1266,9 @@ function Loader._generatePostfix( infix )
                 table.insert(out, table.remove(opStack))
               end
             table.insert(opStack, token)
+            if token.call then
+              table.insert(out, {type="argsMarker"})
+            end
           elseif token.value == ")" or token.value == "]" or token.value == "}" then
             while #opStack > 0 and (
               opStack[#opStack].value  ~= "(" and
@@ -1475,11 +1478,19 @@ function Loader.eval( postfix, scope, line )
         if token.call then
           local args =  pop(stack, scope, line, true)
           local func
-          if (not args.instructions) and (not args.env) and (not token.empty) then
+
+          local expectedMarker
+          if args.type == "argsMarker" then
             func = pop(stack, scope, line)
-          else
-            func = args
+            expectedMarker = args
             args = Loader._varargs()
+          else
+            expectedMarker = pop(stack, scope, line, true)
+            func = pop(stack, scope, line)
+          end
+
+          if expectedMarker.type ~= "argsMarker" then
+            error("internal error, missing args marker for call")
           end
 
           if func.type == "self" then
