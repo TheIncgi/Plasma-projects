@@ -178,7 +178,7 @@ do
 end
 
 --------------------
--- yield & resume --
+-- status is dead --
 --------------------
 do
   local env = Env:new()

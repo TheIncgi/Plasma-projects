@@ -40,6 +40,9 @@ end
 function Async.insertTasks( ... )
 	local t = {...}
   table.insert( t, {label="__endTaskSet",func=function(...) return {...} end} ) --ensure returned value is a task that finishes after any possible child tasks
+  if not threads[ Async.activeThread ] then
+    threads[ Async.activeThread ] = {}
+  end
 	for i,func in ipairs(t) do
     if type( func ) ~= "table" then error("arg "..i.." is not a table",2) end
     if type( func.label ) ~= "string" then error("arg "..i.." is not labeled",2) end
@@ -54,6 +57,9 @@ function Async.removeTask( func, threadID )
   for i=1, #tasks do
     if tasks[i] == func then
       table.remove( tasks, i )
+      if #tasks == 0 then
+        threads[ threadID or Async.activeThread ] = nil
+      end
       return
     end
   end
@@ -1402,7 +1408,7 @@ function Loader.callFunc( func, args, callback )
       },{
         label = "Loader.callFunc - native - result",
         func = function( results )
-          local result = Loader._varargs(table.unpack(results))
+          local result = Loader._varargs(table.unpack(results or {}))
           callback( result )
           return true
         end
@@ -2021,13 +2027,23 @@ function Scope:addGlobals()
       {
         label = "coroutine-create", func = function( ... ) --receives from `resume` call
           Loader.callFunc( sFunc, Loader._varargs(...), function( result )
-            Async.popThread()
-            Async.insertTasks( Async.RETURN( "create-return to resume", result.varargs ) ) --pass to resume
+            if result then
+              Async.insertTasks( Async.RETURN( "create-return to resume", result.varargs ) ) --pass to resume
+            else
+              Async.insertTasks( Async.RETURN( "create-return to resume") ) --pass to resume
+            end
           end)
           return true -- task done
         end
       }
     )
+    local endOfThread = Async.threads[id][#Async.threads[id]]
+    endOfThread.label = "__endOfThread"
+    endOfThread.func = function(...)
+      Async.popThread()
+      
+      return {...}
+    end
     Async.popThread()
     return Loader._val( id, "thread" )
   end, false, false))
@@ -2035,6 +2051,11 @@ function Scope:addGlobals()
   Loader.assignToTable( coroutineModule, Loader._val("resume"), self:makeNativeFunc("resume", function( threadID, ... )
     if threadID.type ~= "thread" then
       error("Expected thread for arg 1 of coroutine.resume, got "..threadID.type)
+    end
+
+    local status = Async.threadStatus( threadID.value )
+    if status == "dead" then
+      return Loader._val(false), Loader._val( "cannot resume dead coroutine" )
     end
     
     Async.pushAndSetThread( threadID.value )
