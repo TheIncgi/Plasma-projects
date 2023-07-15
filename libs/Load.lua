@@ -2020,9 +2020,9 @@ function Scope:addGlobals()
     Async.insertTasks(
       {
         label = "coroutine-create", func = function( ... ) --receives from `resume` call
-          Loader.callFunc( sFunc, Loader._varargs{...}, function( result )
+          Loader.callFunc( sFunc, Loader._varargs(...), function( result )
             Async.popThread()
-            Async.insertTasks( Async.RETURN( "create-return to resume", result ) ) --pass to resume
+            Async.insertTasks( Async.RETURN( "create-return to resume", result.varargs ) ) --pass to resume
           end)
           return true -- task done
         end
