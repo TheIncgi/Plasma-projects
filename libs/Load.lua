@@ -708,6 +708,7 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma,
             }
           )
           Loader.buildInstructions(tokens, instStart, token.blockLevel) --returns instructions, nextIndex
+          requiresValue = false
           return --continue into inserted tasks
         else          
           requiresValue = false
@@ -786,10 +787,16 @@ function Loader._collectExpression( tokens, index, allowAssignment, line, ignore
     error("Missing expression for assignment on line "..line)
   end
   local infix = {}
-  for i=index, endTokenPos-1 do
+  local i = index
+  while i <= endTokenPos-1 do
     table.insert(infix, tokens[i])
     tokens[i].globalIndex = i
     tokens[i].localIndex = #infix
+    if tokens[i].inlineFunc then
+      i = tokens[i].skip
+    else
+      i = i + 1
+    end
   end
 
   return infix, endTokenPos
@@ -1903,7 +1910,6 @@ function Scope:addGlobals()
   
   Loader.assignToTable( tblModule, Loader._val("sort"), self:makeNativeFunc("sort", function(tbl, aIsBeforeB)
     Loader._heapSort( tbl, aIsBeforeB )
-    return tbl
   end, false, false ))
 
   Loader.assignToTable( tblModule, Loader._val("insert"), self:makeNativeFunc("insert", function(tbl, x, y)
@@ -1932,9 +1938,9 @@ function Scope:addGlobals()
     j = j and j.value or #indexer
     local values = {}
     for index=i, j, i<j and 1 or -1 do
-      table.insert( values, tbl[ indexer[index] ] )
+      table.insert( values, tbl.value[ indexer[index] ] )
     end
-    return Loader._varargs( table.unpack(values) )
+    return table.unpack(values)
   end, false, false))
   
   self:set(false, "table", tblModule)
@@ -1943,157 +1949,99 @@ end
 
 ------------------
 --Heap sort
---with help from GPT
---Async by me
+--i is current tree node
+--left/right is child nodes
 ------------------
--- function Loader._heapSort(tbl, aIsBeforeB)
---   local heapify
---   local siftDown
-
---   -- Helper function to swap elements in the table
---   local function swap(arr, i, j)
---     arr[i], arr[j] = arr[j], arr[i]
---   end
-
---   -- Heapify the table
---   heapify = function(arr, n, i)
---     local largest = i
---     local left = 2 * i
---     local right = 2 * i + 1
-
---     if left <= n and not aIsBeforeB(arr[left], arr[largest]) then
---       largest = left
---     end
-
---     if right <= n and not aIsBeforeB(arr[right], arr[largest]) then
---       largest = right
---     end
-
---     if largest ~= i then
---       swap(arr, i, largest)
---       heapify(arr, n, largest)
---     end
---   end
-
---   -- Perform sift-down operation on the table
---   siftDown = function(arr, n)
---     local i = math.floor(n / 2)
-
---     while i >= 1 do
---       heapify(arr, n, i)
---       i = i - 1
---     end
-
---     i = n
-
---     while i > 1 do
---       swap(arr, 1, i)
---       heapify(arr, i - 1, 1)
---       i = i - 1
---     end
---   end
-
---   -- Perform heap sort
---   siftDown(tbl, #tbl)
-
---   return tbl
--- end
-
 function Loader._heapSort(tbl, aIsBeforeB)
   local heapify
-  local siftDown
+  local buildMaxHeap
 
-  -- Helper function to swap elements in the table
-  local function swap(arr, i, j)
-    arr[i], arr[j] = arr[j], arr[i]
+  local indexer = Loader.tableIndexes[tbl.value]
+  local N = #indexer
+
+  local function swap(i, j)
+    tbl.value[indexer[i]], tbl.value[indexer[j]] = tbl.value[indexer[j]], tbl.value[indexer[i]]
   end
 
-  -- Heapify the table
-  heapify = function(arr, n, i)
-    local largest = i
-    local left = 2 * i
-    local right = 2 * i + 1
+  function buildMaxHeap( n )
+    local start = math.floor(n / 2) 
     Async.insertTasks(
-      {
-        label = "heapSort:largest-left",
-        func = function()
+      --for i=floor(n/2) -> 1
+      --  heapify( tbl, i )
+      Async.forEach("sort-buildMaxHeap", function( i )
+        heapify( i, n )
+      end, Async.range, start, 1, -1 )
+    )
+  end
+
+  function heapify( i, n )
+    local left = 2 * i
+    local right = left + 1
+    local max = i
+
+    -- if( left <= n ) && [left] > [i]
+    --   max = left
+    -- else
+    --   max = i
+    -- end
+    -- if right <=n && [right] > [max]
+    --   max = right
+
+    -- if max ~= i 
+    --   swap (i, max)
+    --   heapify( max )
+    Async.insertTasks(
+      { 
+        label = "sort-checkLeft", func = function()
           if left <= n then
-            Async.insertTasks({
-              label = "heapSort:compare-left",
-              func = function()
-                local args = Loader._varargs( arr[left], arr[largest] )
-                Loader.callFunc( aIsBeforeB, args, function(result)
-                  if result.value then
-                    largest = left.value
-                  end
-                end)
+            local args = Loader._varargs( tbl.value[indexer[max]], tbl.value[indexer[left]] ) --must do >, so swapped
+            Loader.callFunc( aIsBeforeB, args, function(result)
+              if result.value.value then
+                max = left
               end
-            })
+            end)
           end
           return true --task complete
         end
       },{
-        label = "heapSort:largest-right",
-        func = function()
+        label = "sort-checkRight", func = function()
           if right <= n then
-            Async.insertTasks(
-              {
-                label = "heapSort:compare-right",
-                func = function()
-                  local args = Loader._varargs( arr[right], arr[largest] )
-                  Loader.callFunc( aIsBeforeB, args, function(result)
-                    if result.value then
-                      largest = right
-                    end
-                  end)
-                end
-              }
-            )
-          end
-          return true --task complete         
-        end
-      },{
-        label = "heapSort:swap&recurse",
-        func = function()
-          if largest ~= i then
-            swap(arr, i, largest)
-            heapify(arr, n, largest)
+            local args = Loader._varargs( tbl.value[indexer[max]], tbl.value[indexer[right]] ) --must do >, so swapped
+            Loader.callFunc( aIsBeforeB, args, function(result)
+              if result.value.value then
+                max = right
+              end
+            end)
           end
           return true --task complete
+        end
+      },{
+        label = "sort-swap", func = function()
+          if max ~= i then
+            swap( i, max )
+            heapify( max, n )
+          end
+          return true
         end
       }
     )
-  end --end heapify
-
-  -- Perform sift-down operation on the table
-  siftDown = function(arr, n)
-    local i = math.floor(n / 2)
-
-    Async.insertTasks(
-      Async.whileLoop("heapSort:siftDown-while1",function() return i >= 1 end, function()
-        heapify(arr, n, i)
-        i = i - 1
-      end),
-      {
-        label = "heapSort:i=n",
-        func = function()
-          i = n
-          return true --task complete
-        end
-      },
-      Async.whileLoop("heapSort:siftDown-while2", function() return i > 1 end, function()
-        swap(arr, 1, i)
-        heapify(arr, i - 1, 1)
-        i = i - 1
-      end),
-      Async.RETURN(tbl)
-    )
   end
 
-  -- Perform heap sort
-  siftDown(tbl, #tbl)
-
-  --return tbl
+  --sort main
+  
+  Async.insertTasks(
+    {
+      label = "sort-init-buildMaxHeap", func = function()
+        buildMaxHeap( N )
+        return true
+      end
+    },
+    Async.forEach("sort-main", function(i)
+        swap( 1, i )
+        heapify( 1, i - 1 )
+    end, Async.range, N, 1, -1),
+    Async.RETURN("sort result", tbl)
+  )
 end
 ------------------
 --End Heap sort

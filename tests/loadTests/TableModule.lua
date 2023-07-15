@@ -298,8 +298,9 @@ do
   local libs = testUtils.libs()
   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
 
+  --local t = { 4,50,9,1,12,6  }
   local src = [=[
-    local t = { 4,50,9,1,12,6  }
+    local t = { 2, 8, 5, 3, 9, 1  }
     table.sort(t, function( a, b )
       return a < b
     end)
@@ -316,20 +317,22 @@ do
 
     local n = 0
     local sorted = true
+    local d = {}
     for i=1, #indexer-1 do
       local k1 = indexer[i]
       local v1 = t[k1]
       local k2 = indexer[i+1]
       local v2 = t[k2]
-      if v2.value < v1.value then
+      table.insert(d, (v1.value .. " < " .. v2.value))
+      if v1.value > v2.value then
         sorted = false
       end
     end
-
+    if not sorted then error("Not sorted: "table.concat(d," | ")) end
     return #indexer == 6 and sorted
   end)
 
-  test:var_isTrue(1)
+  test:var_isTrue(1, "Table is not sorted")
 end
 
 --insert remove pack concat sort unpack
