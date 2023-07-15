@@ -1,10 +1,19 @@
 --copied & modified from plasmaNN.lua
 
 local Async = {}
+local Loader = {}
+local Scope = {}
+local Net = {}
 
 --async
-local tasks = {}
-Async.tasks = tasks
+local threads = {
+  [1] = {}
+}
+
+Async.threads = threads
+Async.threadStack = {}
+Async.activeThread = 1
+Async._threadID = 1 --increments then gets
 -----------------
 -- async task rules
 -- return false if not done
@@ -24,26 +33,33 @@ end
 
 -- --sequential
 -- function addTask( func )
--- 	table.insert( tasks, func )
+-- 	table.insert( threads[Async.activeThread], func )
 -- end
 
 --nested
 function Async.insertTasks( ... )
 	local t = {...}
   table.insert( t, {label="__endTaskSet",func=function(...) return {...} end} ) --ensure returned value is a task that finishes after any possible child tasks
+  if not threads[ Async.activeThread ] then
+    threads[ Async.activeThread ] = {}
+  end
 	for i,func in ipairs(t) do
     if type( func ) ~= "table" then error("arg "..i.." is not a table",2) end
     if type( func.label ) ~= "string" then error("arg "..i.." is not labeled",2) end
     if type( func.func ) ~= "function" then error("arg "..i.." is missing func",2) end
-		table.insert( tasks, i, func )
+		table.insert( threads[Async.activeThread], i, func )
 	end
 	return t[ #t ] 
 end
 
-function Async.removeTask( func )
+function Async.removeTask( func, threadID )
+  local tasks = threads[ threadID or  Async.activeThread ]
   for i=1, #tasks do
     if tasks[i] == func then
       table.remove( tasks, i )
+      if #tasks == 0 then
+        threads[ threadID or Async.activeThread ] = nil
+      end
       return
     end
   end
@@ -54,21 +70,22 @@ end
 function Async.sync( task )
   --print( "SYNC: "..tostring(task).." | "..task.label )
 	local args = {}
-	while #tasks > 0 do
-		local t = tasks[1]
+	while #threads[Async.activeThread] > 0 do
+    local threadOnCall = Async.activeThread
+		local t = threads[Async.activeThread][1]
     --print(" > ", t.label ,sourceLine(t.func), t.func)
 		local value =  t.func( table.unpack(args) ) 
     args = {}
 		if value == false then
 			--
 		elseif type(value) == "table" then
-            Async.removeTask( t )
+            Async.removeTask( t, threadOnCall )
       if t == task then
 				return table.unpack( value )
 			end
 			args = value
 		elseif value == true then
-			Async.removeTask( t )
+			Async.removeTask( t, threadOnCall )
       if t == task then
         return
       end
@@ -154,8 +171,8 @@ local __args = {}
 function Async.loop()
   stepsPerLoop = V2 or 10
   for steps = 1, stepsPerLoop do
-    if #tasks > 0 then
-      local t = tasks[1]
+    if #threads[Async.activeThread] > 0 then
+      local t = threads[Async.activeThread][1]
       --print(" > ", t.label ,sourceLine(t.func), t.func)
       local value =  t.func( table.unpack(__args) ) 
       __args = {}
@@ -173,6 +190,38 @@ function Async.loop()
   end
 end
 
+function Async.newThread()
+  Async._threadID = Async._threadID + 1
+  Async.threads[ Async._threadID ] = {}
+  return Async._threadID
+end
+
+function Async.pushAndSetThread( switchTo )
+  table.insert( Async.threadStack, Async.activeThread )
+  Async.activeThread = switchTo
+end
+
+function Async.popThread()
+  local old = Async.activeThread
+  Async.activeThread = table.remove( Async.threadStack )
+  if not Async.activeThread then
+    error("yield called from main thread")
+  end
+  return old
+end
+
+function Async.threadStatus( threadID )
+  if not threadID then error("threadID expected",2) end
+  local tasks = Async.threads[ threadID ]
+  if not tasks or #tasks == 0 then
+    return "dead"
+  elseif Async.activeThread == threadID then
+    return "running"
+  else
+    return "suspended"
+  end
+end
+
 local insertTasks = Async.insertTasks
 local forEach = Async.forEach
 local sync = Async.sync
@@ -180,10 +229,6 @@ local removeTask = Async.removeTask
 local range = Async.range
 local RETURN = Async.RETURN
 --=====================================================================================
-
-local Loader = {}
-local Scope = {}
-local Net = {}
 
 --[table][raw key] -> wrapped key
 Loader.tableIndexes = {}
@@ -1228,6 +1273,9 @@ function Loader._generatePostfix( infix )
                 table.insert(out, table.remove(opStack))
               end
             table.insert(opStack, token)
+            if token.call then
+              table.insert(out, {type="argsMarker"})
+            end
           elseif token.value == ")" or token.value == "]" or token.value == "}" then
             while #opStack > 0 and (
               opStack[#opStack].value  ~= "(" and
@@ -1360,7 +1408,7 @@ function Loader.callFunc( func, args, callback )
       },{
         label = "Loader.callFunc - native - result",
         func = function( results )
-          local result = Loader._varargs(table.unpack(results))
+          local result = Loader._varargs(table.unpack(results or {}))
           callback( result )
           return true
         end
@@ -1437,11 +1485,19 @@ function Loader.eval( postfix, scope, line )
         if token.call then
           local args =  pop(stack, scope, line, true)
           local func
-          if (not args.instructions) and (not args.env) and (not token.empty) then
+
+          local expectedMarker
+          if args.type == "argsMarker" then
             func = pop(stack, scope, line)
-          else
-            func = args
+            expectedMarker = args
             args = Loader._varargs()
+          else
+            expectedMarker = pop(stack, scope, line, true)
+            func = pop(stack, scope, line)
+          end
+
+          if expectedMarker.type ~= "argsMarker" then
+            error("internal error, missing args marker for call")
           end
 
           if func.type == "self" then
@@ -1844,6 +1900,8 @@ function Scope:addGlobals()
     fArgs[1] = fArgs[1].value
   end, false )
 
+  self:setNativeFunc( "type", function( value ) return value.type end, false, nil)
+
   ---------------------------------------------------------
   -- math
   ---------------------------------------------------------
@@ -1953,6 +2011,85 @@ function Scope:addGlobals()
     Loader.assignToTable( bitModule, Loader._val(name), self:makeNativeFunc(name, func))
   end
   self:set(false, "bit32", bitModule)
+
+  ---------------------------------------------------------
+  -- coroutine
+  ---------------------------------------------------------
+  local coroutineModule = Loader.newTable()
+  Loader.assignToTable( coroutineModule, Loader._val("create"), self:makeNativeFunc("create", function( sFunc )
+    if sFunc.type ~= "function" then
+      error("arg 1 must be of type function for coroutine.create, got "..(sFunc.type))
+    end
+    local originalThread = Async.activeThread
+    local id = Async.newThread()
+    Async.pushAndSetThread( id )
+    Async.insertTasks(
+      {
+        label = "coroutine-create", func = function( ... ) --receives from `resume` call
+          Loader.callFunc( sFunc, Loader._varargs(...), function( result )
+            if result then
+              Async.insertTasks( Async.RETURN( "create-return to resume", result.varargs ) ) --pass to resume
+            else
+              Async.insertTasks( Async.RETURN( "create-return to resume") ) --pass to resume
+            end
+          end)
+          return true -- task done
+        end
+      }
+    )
+    local endOfThread = Async.threads[id][#Async.threads[id]]
+    endOfThread.label = "__endOfThread"
+    endOfThread.func = function(...)
+      Async.popThread()
+      
+      return {...}
+    end
+    Async.popThread()
+    return Loader._val( id, "thread" )
+  end, false, false))
+
+  Loader.assignToTable( coroutineModule, Loader._val("resume"), self:makeNativeFunc("resume", function( threadID, ... )
+    if threadID.type ~= "thread" then
+      error("Expected thread for arg 1 of coroutine.resume, got "..threadID.type)
+    end
+
+    local status = Async.threadStatus( threadID.value )
+    if status == "dead" then
+      return Loader._val(false), Loader._val( "cannot resume dead coroutine" )
+    end
+    
+    Async.pushAndSetThread( threadID.value )
+    Async.insertTasks( --in thread's tasks
+      Async.RETURN( "resume-pass args", ... ) --pass args to coroutine
+    )
+  end, false, false))
+
+  Loader.assignToTable( coroutineModule, Loader._val("yield"), self:makeNativeFunc("yield", function(...) --stuff to pass to resume
+    if Async.activeThread == 1 then
+      error("Can't yield on main thread!")
+    end
+    Async.popThread()
+    Async.insertTasks( --in caller of resume's thread
+      Async.RETURN( "yield-return values", {...} ) --stack of values 
+    )
+  end, false, false))
+
+  Loader.assignToTable( coroutineModule, Loader._val("status"), self:makeNativeFunc("status", function(threadID) --stuff to pass to resume
+    if threadID.type ~= "thread" then
+      error("Expected thread for arg 1 of coroutine.resume, got "..threadID.type)
+    end
+    return Async.threadStatus( threadID.value  )
+  end, false, nil))
+
+  Loader.assignToTable( coroutineModule, Loader._val("running"), self:makeNativeFunc("running", function() --stuff to pass to resume
+    return Loader._val( Async.activeThread, "thread" ), Loader._val( Async.activeThread == 1 )
+  end, false, false))
+
+  Loader.assignToTable( coroutineModule, Loader._val("wrap"), self:makeNativeFunc("wrap", function() --stuff to pass to resume
+    error("feature requires metatables to be implemented!") --TODO
+  end, false, false))
+
+  self:set(false, "coroutine", coroutineModule)
   -- self:setNativeFunc( "",  )
 end
 
