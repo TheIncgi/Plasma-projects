@@ -23,6 +23,21 @@ function testUtils.newScope(Scope)
   return scope
 end
 
+function testUtils.codeTest(tester, name, env, libs, src, expectedResultCount)
+  return tester:add(name, env, function()
+    local scope = testUtils.newScope(libs.Scope)
+    local results = testUtils.run(src, scope, libs.Loader, libs.Async).varargs
+    if expectedResultCount and #results ~= expectedResultCount then
+      error("Expected "..expectedResultCount.." return value(s)")
+    end
+    local tmp = {}
+    for i=1,#results do
+      tmp[i] = results[i].value
+    end
+    return table.unpack(tmp)
+  end)
+end
+
 function testUtils.common(env)
   local printProxy = env:proxy("print", function() end)
   printProxy.realDefault = true

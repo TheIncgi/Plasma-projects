@@ -1944,6 +1944,15 @@ function Scope:addGlobals()
   end, false, false))
   
   self:set(false, "table", tblModule)
+
+  ---------------------------------------------------------
+  -- bit32
+  ---------------------------------------------------------
+  local bitModule = Loader.newTable()
+  for name, func in pairs(bit32) do
+    Loader.assignToTable( bitModule, Loader._val(name), self:makeNativeFunc(name, func))
+  end
+  self:set(false, "bit32", bitModule)
   -- self:setNativeFunc( "",  )
 end
 
