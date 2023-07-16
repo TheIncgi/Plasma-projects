@@ -16,6 +16,7 @@ local tests = {
   "Bit32Module",
   "CoroutineModule",
   "Metatable",
+  "ShortCircuiting",
 }
 
 local totalPassed = 0
