@@ -734,7 +734,7 @@ do
 
   test:var_eq(1, 16)
   test:var_eq(2, 16)
-  test:var_eq(3,  2)
+  test:var_eq(3,  1)
 end
 
 -----------
