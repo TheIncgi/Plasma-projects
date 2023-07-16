@@ -1390,7 +1390,7 @@ end
 --TODO varargs issue
 function Loader._popVal( stack, scope, line, keepVarargs )
   local token = table.remove(stack)
-  if not token then error("Error, empty stack from expression on line "..line) end
+  if not token then error("Error, empty stack from expression on line "..line, 2) end
   local value = Loader._tokenValue( token, scope )
   if value.type == "varargs" and not keepVarargs then
     return value.value
@@ -1909,8 +1909,8 @@ function Loader.eval( postfix, scope, line )
 
           local eventA = Loader.getMetaEvent( a, "__eq" )
           local eventB = Loader.getMetaEvent( b, "__eq" )
-          if eventA and eventA.type == "funciton" and eventA == eventB then
-            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
+          if eventA and eventA.type == "function" and eventA == eventB then
+            Loader.callFunc( eventA, Loader._varargs( a, b ), function(result) --varargs result
               table.insert(stack, result.value)
             end)
           else
@@ -1929,9 +1929,9 @@ function Loader.eval( postfix, scope, line )
 
           local eventA = Loader.getMetaEvent( a, "__eq" )
           local eventB = Loader.getMetaEvent( b, "__eq" )
-          if eventA and eventA.type == "funciton" and eventA == eventB then
-            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
-              table.insert(stack, not result.value)
+          if eventA and eventA.type == "function" and eventA == eventB then
+            Loader.callFunc( eventA, Loader._varargs( a, b ), function(result) --varargs result
+              table.insert(stack, Loader._val(not result.value))
             end)
           else
             table.insert(stack, val(a.value ~= b.value))

@@ -949,8 +949,14 @@ do
 
   local src = [=[
     local t = { x = "world" }
-    local u = { x = "!" }
+    local u = { x = "world" }
+    local v = { x = "world" }
     local m = {
+      __eq = function(a, b)
+        return a.x == b.x
+      end
+    }
+    local m2 = {
       __eq = function(a, b)
         return a.x == b.x
       end
@@ -958,18 +964,23 @@ do
     
     setmetatable( t, m )
     setmetatable( u, m )
+    setmetatable( v, m2 )
 
     return 
       "hello " == t, 
         t == "!",
-        t == u
+        t == u,
+        not (t ~= u),
+        t == v
   ]=]
 
   local test = testUtils.codeTest(tester, "__eq", env, libs, src)
 
-  test:var_isFalse(1)
-  test:var_isFalse(2)
-  test:var_isTrue(3)
+  test:var_isFalse(1, "Expected false for arg #1, got $1")
+  test:var_isFalse(2, "Expected false for arg #2, got $1")
+  test:var_isTrue( 3, "Expected true for arg #3, got $1")
+  test:var_isTrue( 4, "Expected true for arg #4, got $1")
+  test:var_isFalse( 5, "Expected false for arg #5, got $1")
 end
 
 ----------
