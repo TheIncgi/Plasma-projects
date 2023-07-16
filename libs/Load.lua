@@ -400,11 +400,14 @@ function Loader._chunkType( text )
 	-- elseif text:match"//.+" then 
 	-- 	return false
   end
+  
   if text:sub(1,3) == "..." then
     if text == "..." then 
       return "var"
     end
     return false
+  elseif text == "0x" or text == "0b" then
+    return "num" --incomplete
   end
 	for _, name in ipairs{ "op","num","var","str" } do
 		local group = Loader._patterns[ name ]
@@ -529,7 +532,15 @@ function Loader.cleanupTokens( tokens )
       }
 
       if tokenType == "num" then
-        infoToken.value = tonumber(infoToken.value)
+        local base
+        if token:sub(1,2) == "0b" then
+          base = 2
+          infoToken.value = infoToken.value:sub(3)
+        elseif token:sub(1,2) == "0x" then
+          base = 16
+          infoToken.value = infoToken.value:sub(3)
+        end
+        infoToken.value = tonumber(infoToken.value, base)
 
         if prior and prior.value == "-"
         and ((twicePrior and twicePrior.type == "op" and (
