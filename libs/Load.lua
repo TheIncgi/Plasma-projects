@@ -248,6 +248,15 @@ function Async.threadStatus( threadID )
   end
 end
 
+--debug info
+function Async.setLine( line )
+  Async.threads[ Async.activeThread ].line = line
+end
+
+function Async.getLine()
+  return Async.threads[ Async.activeThread ].line
+end
+
 local insertTasks = Async.insertTasks
 local forEach = Async.forEach
 local sync = Async.sync
@@ -1685,6 +1694,7 @@ function Loader.eval( postfix, scope, line )
   local val = Loader._val
   Async.insertTasks(
     Async.forEach("eval-postfix", function(index, token)
+      if token.line then Async.setLine( token.line ) end
       if token.type == "op" then
         if token.call then
           local args =  pop(stack, scope, line, true)
@@ -2471,6 +2481,9 @@ function Scope:addGlobals()
   self:setNativeFunc( "tonumber", function( x )
     return tonumber( x )
   end )
+  self:setNativeFunc( "error", function( msg, lvl )
+    error( "Error on line line "..Async.getLine()..": "..tostring(msg.value), (lvl and lvl.value + 1) or 2)
+  end, false, false)
   --tostring(table.unpack{nil}) is an error
   --tostring( nil ) is not...
   self:setNativeFunc( "tostring", function( x )
@@ -2923,6 +2936,7 @@ function Loader.execute( instructions, env, ... )
     Async.whileLoop("exec", function () return instructions[index] end, function ()
       local inst = instructions[index]
       local top = callStack[#callStack]
+      if inst.line then Async.setLine( inst.line ) end
       -- print("                       DEBUG: "..inst.line..": "..inst.op.."["..#callStack.."]")
       if inst.op == "assign" then
         -- local instruction = {
