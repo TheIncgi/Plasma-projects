@@ -10,6 +10,7 @@ local tester = Tester:new()
 
 -----------------------------------------------------------------
 -- Tests
+-- http://lua-users.org/wiki/MetatableEvents
 -----------------------------------------------------------------
 
 -------------------
@@ -283,6 +284,68 @@ do
   local test = testUtils.codeTest(tester, "__len", env, libs, src)
 
   test:var_eq(1, 123)
+end
+
+-------------
+-- __pairs --
+-------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = {}
+    
+    setmetatable( t, {
+      __pairs = function()
+        return "hello":gmatch"."
+      end
+    })
+    
+    local hits = 0
+    for x in pairs( t ) do
+      hits = hits + 1
+    end
+
+    return hits
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__pairs", env, libs, src)
+
+  test:var_eq(1, 5)
+end
+
+-------------
+-- __ipairs --
+-------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = {}
+    
+    setmetatable( t, {
+      __ipairs = function()
+        return "hello":gmatch"."
+      end
+    })
+    
+    local hits = 0
+    for x in ipairs( t ) do
+      hits = hits + 1
+    end
+
+    return hits
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__ipairs", env, libs, src)
+
+  test:var_eq(1, 5)
 end
 
 return tester

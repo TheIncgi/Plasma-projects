@@ -7,7 +7,9 @@ local Net = {}
 
 Loader.tableIndexes = {}
 Loader.strings = {}
-Loader.metatables = {}
+Loader.metatables = {
+  string = {}
+}
 
 
 --[table][raw key] -> wrapped key
@@ -1492,6 +1494,9 @@ end
 function Loader.getMetaEvent( tableValue, eventName )
   local meta = Loader.getmetatable( tableValue, true )
   local NIL = Loader.constants["nil"]
+  if not meta or meta.type == "nil" then
+    return NIL
+  end
   if meta.type=="nil" then return NIL end
   local index = Loader.getTableIndex( meta )
   local k = index[ eventName ]
@@ -1554,8 +1559,10 @@ end
 --sync
 --returns table/nil, protected
 function Loader.getmetatable( tableValue, raw )
-  if tableValue.type ~= "table" then
-    error("getmetatable requires arg to be table", 2)
+  if tableValue.type == "string" then
+    return Loader.metatables.string
+  elseif tableValue.type ~= "table" then
+    return Loader.constants["nil"]
   end
   local rawMeta = Loader.metatables[ tableValue.value ]
   
@@ -1645,7 +1652,7 @@ function Loader.eval( postfix, scope, line )
           if func.type == "table" then
             local __call = Loader.getMetaEvent( func, "__call" )
             if __call and __call.type=="function" then
-              if args.type ~= varargs then
+              if args.type ~= "varargs" then
                 args = Loader._varargs( func, args )
               else
                 table.insert( args.varargs, func )
@@ -1657,6 +1664,10 @@ function Loader.eval( postfix, scope, line )
 
           if func.type ~= "function" then
             error("attempt to call "..func.type.." on line "..token.line)
+          end
+
+          if args.type ~= "varargs" then
+            args = Loader._varargs( args )
           end
 
           Loader.callFunc( func, args, function( result )
@@ -2044,22 +2055,48 @@ function Scope:addGlobals()
   end, false, false )
 
   self:setNativeFunc( "ipairs",   function(tbl)
-    local indexer = Loader.tableIndexes[tbl.value]
-    local gen, _, start = ipairs(indexer)
-    local wrapGen = Loader._val(function(tbl, index, ...)
-      local nextIndex, nextWrappedIndex = gen( indexer, index )
-      return nextWrappedIndex, tbl[nextWrappedIndex]
-    end)
-    wrapGen.unpacker = Loader.UNPACKER
-    return wrapGen, tbl, Loader._val(start)
+    if tbl.type ~= "table" then
+      error("expected table for ipairs, got "..tbl.type)
+    end
+    local event = Loader.getMetaEvent( tbl, "__ipairs" )
+    if event and event.type == "function" then
+      Loader.callFunc( event, Loader._varargs( tbl ), function( results )
+        Async.insertTasks(Async.RETURN("__ipairs result", results.varargs))
+      end)
+    else
+      local indexer = Loader.getTableIndex( tbl )
+      local gen, _, start = ipairs(indexer)
+      local wrapGen = Loader._val(function(tbl, index, ...)
+        local nextIndex, nextWrappedIndex = gen( indexer, index )
+        return nextWrappedIndex, tbl[nextWrappedIndex]
+      end)
+      wrapGen.unpacker = Loader.UNPACKER
+      return wrapGen, tbl, Loader._val(start)
+    end
   end, false, false )
 
-  self:setNativeFunc( "pairs",    pairs, function( fArgs )
-    fArgs[1] = fArgs[1].value
-  end, false )
+  self:setNativeFunc( "pairs", function( tbl )
+    if tbl.type ~= "table" then
+      error("expected table for pairs, got "..tbl.type)
+    end
+    local event = Loader.getMetaEvent( tbl, "__pairs" )
+    if event and event.type == "function" then
+      Loader.callFunc( event, Loader._varargs( tbl ), function( results )
+        Async.insertTasks(Async.RETURN("__pairs result", results.varargs))
+      end)
+    else
+      local indexer = Loader.getTableIndex( tbl )
+      local gen, _, start = pairs(indexer)
+      local wrapGen = Loader._val(function(tbl, index, ...)
+        local nextIndex, nextWrappedIndex = gen( indexer, index )
+        return nextWrappedIndex, tbl[nextWrappedIndex]
+      end)
+      wrapGen.unpacker = Loader.UNPACKER
+      return wrapGen, tbl, Loader._val(start)
+    end
+  end, false, false )
 
-  self:setNativeFunc( "type", function( value ) return value.type end, false, nil)
-
+  self:setNativeFunc( "type", function( value ) return value.type end, false, nil )
   self:setNativeFunc( "getmetatable", Loader.getmetatable, false, false )
   self:setNativeFunc( "setmetatable", Loader.setmetatable, false, false )
   self:setNativeFunc( "rawset", Loader.assignToTable, false, false )
