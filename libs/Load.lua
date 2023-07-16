@@ -317,6 +317,7 @@ Loader._ops = {
 	["^"] = 7, --exponent
 	-- ["**"] = 6, --cross
 	["/"] = 6,
+	["//"] = 6, --floor div
 	["*"] = 6,
 	["%"] = 6, --mod
 	["+"] = 5,
@@ -1759,7 +1760,22 @@ function Loader.eval( postfix, scope, line )
           if a.type == "function" or b.type == "function" then
             error("attempt to preform exponent opperation with "..a.type.." and "..b.type.." on line "..token.line)
           end
-          table.insert(stack, val(a.value^b.value))
+
+          local event
+          if a.type == "table" then
+            event = Loader.getMetaEvent( a, "__pow" )
+          end
+          if not event and b.type == "table" then
+            event = Loader.getMetaEvent( b, "__pow" )
+          end
+
+          if event and event.type == "function" then
+            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
+              table.insert(stack, result.value)
+            end)
+          else
+            table.insert(stack, val(a.value^b.value))
+          end
 
         elseif token.value == "*" then
           local b, a = pop(stack, scope, line), pop(stack, scope, line)
@@ -1788,7 +1804,44 @@ function Loader.eval( postfix, scope, line )
           if a.type == "function" or b.type == "function" then
             error("attempt to divide "..a.type.." with "..b.type.." on line "..token.line)
           end
-          table.insert(stack, val(a.value/b.value))
+
+          local event
+          if a.type == "table" then
+            event = Loader.getMetaEvent( a, "__div" )
+          end
+          if not event and b.type == "table" then
+            event = Loader.getMetaEvent( b, "__div" )
+          end
+
+          if event and event.type == "function" then
+            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
+              table.insert(stack, result.value)
+            end)
+          else
+            table.insert(stack, val(a.value/b.value))
+          end
+        
+        elseif token.value == "//" then
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" or b.type == "function" then
+            error("attempt to divide "..a.type.." with "..b.type.." on line "..token.line)
+          end
+
+          local event
+          if a.type == "table" then
+            event = Loader.getMetaEvent( a, "__idiv" )
+          end
+          if not event and b.type == "table" then
+            event = Loader.getMetaEvent( b, "__idiv" )
+          end
+
+          if event and event.type == "function" then
+            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
+              table.insert(stack, result.value)
+            end)
+          else
+            table.insert(stack, val(math.floor(a.value/b.value)))
+          end
 
         elseif token.value == "+" then
           local b, a = pop(stack, scope, line), pop(stack, scope, line)
