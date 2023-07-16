@@ -1468,6 +1468,9 @@ end
 
 --async
 function Loader.assignToTableWithEvents( tableValue, keyValue, valueValue )
+  if not tableValue then error("expected tableValue",2 ) end
+  if not keyValue then error("expected keyValue",2 ) end
+  if not valueValue then error("expected valueValue",2 ) end
   local index = Loader.getTableIndex( tableValue )
   local k = index[ keyValue.value ]
   local v = tableValue.value[ keyValue ] or tableValue.value[ k ]
@@ -1493,6 +1496,13 @@ function Loader.getMetaEvent( tableValue, eventName )
   local index = Loader.getTableIndex( meta )
   local k = index[ eventName ]
   return meta.value[ k ] or NIL
+end
+
+function Loader.indexTable( tableValue, keyValue )
+  local index = Loader.getTableIndex( tableValue )
+  local k = index[ keyValue.value ]
+  local v = tableValue.value[ keyValue ] or tableValue.value[ k ]
+  return v or Loader.constants["nil"]
 end
 
 --async
@@ -2026,6 +2036,8 @@ function Scope:addGlobals()
 
   self:setNativeFunc( "getmetatable", Loader.getmetatable, false, false )
   self:setNativeFunc( "setmetatable", Loader.setmetatable, false, false )
+  self:setNativeFunc( "rawset", Loader.assignToTable, false, false )
+  self:setNativeFunc( "rawget", Loader.indexTable, false, false )
 
   ---------------------------------------------------------
   -- math
@@ -2442,8 +2454,9 @@ function Loader.execute( instructions, env, ... )
                   top:set(inst.isLocal, target.name, stack[i] or Loader.constants["nil"] )
                 else
                   local nameVal = Loader._val(target.name)
-                  target.place.value[nameVal] = stack[i]
-                  Loader.tableIndexes[target.place.value][target.name] = nameVal
+                  Loader.assignToTableWithEvents( target.place, nameVal, stack[i] )
+                  -- target.place.value[nameVal] = stack[i]
+                  -- Loader.tableIndexes[target.place.value][target.name] = nameVal
                 end
               end
               return true
