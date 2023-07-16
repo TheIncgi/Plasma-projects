@@ -1492,7 +1492,7 @@ function Loader.getMetaEvent( tableValue, eventName )
   if meta.type=="nil" then return NIL end
   local index = Loader.getTableIndex( meta )
   local k = index[ eventName ]
-  return meta[ k ] or NIL
+  return meta.value[ k ] or NIL
 end
 
 --async
@@ -1516,7 +1516,7 @@ function Loader.indexTableWithEvents( tableValue, keyValue, callback, loop )
   if __index.type == "function" then
     Loader.callFunc( __index, Loader._varargs( tableValue, keyValue ), function( values )
       --only first value is returned
-      callback( values[1] )
+      callback( values.varargs[1] )
     end )
   elseif __index.type == "table" then
     Async.insertTasks({
@@ -2023,6 +2023,9 @@ function Scope:addGlobals()
   end, false )
 
   self:setNativeFunc( "type", function( value ) return value.type end, false, nil)
+
+  self:setNativeFunc( "getmetatable", Loader.getmetatable, false, false )
+  self:setNativeFunc( "setmetatable", Loader.setmetatable, false, false )
 
   ---------------------------------------------------------
   -- math

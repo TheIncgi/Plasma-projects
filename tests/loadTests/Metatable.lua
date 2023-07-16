@@ -35,5 +35,29 @@ do
   test:var_eq(1, "ok")
 end
 
+-------------------
+-- __index function --
+-------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = {}
+    setmetatable( t, {
+      __index = function(t, k)
+        return k + 1
+      end
+    })
+    return t[122]
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__index function", env, libs, src)
+
+  test:var_eq(1, 123, "Expected index function to return k + 1 (123), got $1")
+end
+
 
 return tester
