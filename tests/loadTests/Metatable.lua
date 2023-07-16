@@ -777,6 +777,33 @@ do
   test:var_eq(3, 19)
 end
 
+-----------
+-- __bnot --
+-----------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { x = 17 }
+    local m = {
+      __bnot = function(a)
+        return ~a.x
+      end
+    }
+    
+    setmetatable( t, m )
+
+    return ~t
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__bnot", env, libs, src)
+
+  test:var_eq(1, bit32.bnot(17))
+end
+
 ------------
 -- __bxor --
 ------------

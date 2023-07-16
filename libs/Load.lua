@@ -531,6 +531,20 @@ function Loader.cleanupTokens( tokens )
         blockLevel = blockLevel
       }
 
+      if token == "~"
+      and (
+        ( 
+          prior and (
+            --is op or keyword, but not closing ) type
+            prior.type == "op" and prior.value ~= ")" and prior.value ~= "}" and prior.value ~= "]"
+          )
+        ) or (
+          prior and prior.type == "keyword"
+        ) or (not prior)
+      ) then
+        infoToken.value = "~ubn"
+      end
+
       if tokenType == "num" then
         local base
         if token:sub(1,2) == "0b" then
@@ -742,7 +756,15 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma,
   }
   if tokens[start].type=="op"then
     if not startPermitted[tokens[start].value] then
-      error("Can't start an expression with an op besides #, not, (, {, or [")
+      local keys = {}
+      for a in pairs(startPermitted) do 
+        if a:sub(2,2) == "u" then
+          table.insert(keys, a:sub(1,1))
+        else
+          table.insert(keys, a)
+        end
+      end
+      error("Can't start an expression with op `"..tokens[start].value.."` must be one of: "..table.concat(keys,", "))
     end
   end
   return Async.insertTasks(
@@ -1587,6 +1609,9 @@ end
 
 --sync
 function Loader.setmetatable( tableValue, metatableValue )
+  if tableValue.type ~= "table" then
+    error("expected table for arg 1", 2)
+  end
   local tbl, protected = Loader.getmetatable( tableValue )
   if protected then
     error("cannot change a protected metatable")
@@ -2130,7 +2155,7 @@ function Loader.eval( postfix, scope, line )
             table.insert(stack, val(-a.value))
           end
         
-        elseif token.value == "~ubm" then --token cleanup does some of this already
+        elseif token.value == "~ubn" then --token cleanup does some of this already
           local a = pop(stack, scope, line)
           if a.type == "function" then
             error("can't do unary minus on a function")
