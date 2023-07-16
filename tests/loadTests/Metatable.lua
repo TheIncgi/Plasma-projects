@@ -374,4 +374,44 @@ do
   test:var_eq(1, "ok")
 end
 
+-----------
+-- __add --
+-----------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { x =  5 }
+    local u = { x = 10 }
+    local m = {
+      __add = function(a, b)
+        if type(a) == "table" then
+          a = a.x
+        end
+        if type(b) == "table" then
+          b = b.x
+        end
+        return a + b
+      end
+    }
+    
+    setmetatable( t, m )
+    setmetatable( u, m )
+
+    return 
+      1 + t, 
+      t + 1,
+      t + u
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__add", env, libs, src)
+
+  test:var_eq(1, 6)
+  test:var_eq(2, 6)
+  test:var_eq(3, 15)
+end
+
 return tester

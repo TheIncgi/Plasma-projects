@@ -1041,6 +1041,13 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
         elseif token.value == "if" or token.value == "elseif" then
           --TODO prevent varargs evaluation
           local infix, endTokenPos = Loader._collectExpression(tokens, index+1, false, token.line) --todo async improvment
+
+          if token.value == "if" then
+            table.insert(instructions, {op="createScope", line=token.line, index = #instructions+1}) 
+            --scope used by any if/elseif/else, shared since only one can use it
+            --scope also holds if state
+          end
+
           local instruction = {
             op = token.value,
             infix = {condition = infix},
@@ -1052,10 +1059,6 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
           if token.value == "elseif" then
             local ifInst = table.remove(blocks)
             ifInst.skip = instruction
-          else
-            table.insert(instruction, {op="createScope", line=token.line, index = #instructions+1}) 
-            --scope used by any if/elseif/else, shared since only one can use it
-            --scope also holds if state
           end
           table.insert(instructions, instruction)
           table.insert(blocks, instruction)
@@ -1682,6 +1685,9 @@ function Loader.eval( postfix, scope, line )
           end
 
           Loader.callFunc( func, args, function( result )
+            if result and result.varargs then
+              result.len = math.min(1, #result.varargs )
+            end
             table.insert( stack, result )
           end)
 
@@ -1774,7 +1780,22 @@ function Loader.eval( postfix, scope, line )
           if a.type == "function" or b.type == "function" then
             error("attempt to add "..a.type.." with "..b.type.." on line "..token.line)
           end
-          table.insert(stack, val(a.value+b.value))
+
+          local event
+          if a.type == "table" then
+            event = Loader.getMetaEvent( a, "__add" )
+          end
+          if not event and b.type == "table" then
+            event = Loader.getMetaEvent( b, "__add" )
+          end
+
+          if event and event.type == "function" then
+            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
+              table.insert(stack, result.value)
+            end)
+          else
+            table.insert(stack, val(a.value+b.value))
+          end
 
         elseif token.value == "-" then
           local b, a = pop(stack, scope, line), pop(stack, scope, line)
@@ -1863,12 +1884,32 @@ function Loader.eval( postfix, scope, line )
           table.insert(stack, val(a.value .. b.value))
 
         elseif token.value == "," then
-          local b, a = pop(stack, scope, line), pop(stack, scope, line, true)
-          if a.varargs and not a.weak then
+          local b, a = pop(stack, scope, line, true), pop(stack, scope, line, true)
+          if a.varargs and b.varargs then
+            local aN = a.len or 1
+            local bN = b.len or 1
+            
+            for i=aN + 1, math.max(#a.varargs, aN + #b.varargs) do
+              a.varargs[i] = b.varargs[ i - aN ]
+            end
+            a.len = aN + bN
+            table.insert(stack, a)
+          elseif a.varargs then
+            a.len = (a.len or 1) + 1
+            for i = a.len, #a.varargs do
+              a.varargs[i] = nil
+            end
             table.insert(a.varargs, b)
             table.insert(stack, a)
+          elseif b.varargs then
+            table.insert(b.varargs, 1, a)
+            b.value = a
+            b.len = (b.len or 1) + 1
+            table.insert( stack, b )
           else
-            table.insert( stack, Loader._varargs(a,b) )
+            local vargs = Loader._varargs(a, b)
+            vargs.len = 2 --, ops used + 1
+            table.insert( stack, vargs )
           end
         
           
