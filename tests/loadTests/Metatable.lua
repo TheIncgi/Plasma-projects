@@ -347,7 +347,8 @@ do
 
   test:var_eq(1, 5)
 end
-
+----------------------------------------------------------------------------------------------------------------------------------------
+-- arithmetic
 -----------
 -- __unm --
 -----------
@@ -412,6 +413,637 @@ do
   test:var_eq(1, 6)
   test:var_eq(2, 6)
   test:var_eq(3, 15)
+end
+
+-----------
+-- __sub --
+-----------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { x =  5 }
+    local u = { x = 10 }
+    local m = {
+      __sub = function(a, b)
+        if type(a) == "table" then
+          a = a.x
+        end
+        if type(b) == "table" then
+          b = b.x
+        end
+        return a - b
+      end
+    }
+    
+    setmetatable( t, m )
+    setmetatable( u, m )
+
+    return 
+      1 - t, 
+      t - 1,
+      t - u
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__sub", env, libs, src)
+
+  test:var_eq(1, -4)
+  test:var_eq(2,  4)
+  test:var_eq(3, -5)
+end
+
+-----------
+-- __mul --
+-----------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { x =  5 }
+    local u = { x = 10 }
+    local m = {
+      __mul = function(a, b)
+        if type(a) == "table" then
+          a = a.x
+        end
+        if type(b) == "table" then
+          b = b.x
+        end
+        return a * b
+      end
+    }
+    
+    setmetatable( t, m )
+    setmetatable( u, m )
+
+    return 
+      2 * t, 
+      t * 2,
+      t * u
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__mul", env, libs, src)
+
+  test:var_eq(1, 10)
+  test:var_eq(2, 10)
+  test:var_eq(3, 50)
+end
+
+-----------
+-- __div --
+-----------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { x = 8 }
+    local u = { x = 4 }
+    local m = {
+      __div = function(a, b)
+        if type(a) == "table" then
+          a = a.x
+        end
+        if type(b) == "table" then
+          b = b.x
+        end
+        return a / b
+      end
+    }
+    
+    setmetatable( t, m )
+    setmetatable( u, m )
+
+    return 
+      64 / t, 
+       t / 2,
+       t / u
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__div", env, libs, src)
+
+  test:var_eq(1, 8)
+  test:var_eq(2, 4)
+  test:var_eq(3, 2)
+end
+
+-----------
+-- __idiv --
+-----------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { x = 17 }
+    local u = { x = 3 }
+    local m = {
+      __idiv = function(a, b)
+        if type(a) == "table" then
+          a = a.x
+        end
+        if type(b) == "table" then
+          b = b.x
+        end
+        return a // b
+      end
+    }
+    
+    setmetatable( t, m )
+    setmetatable( u, m )
+
+    return 
+      100 // t, 
+        t // 2,
+        t // u
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__idiv", env, libs, src)
+
+  test:var_eq(1, 5)
+  test:var_eq(2, 8)
+  test:var_eq(3, 5)
+end
+
+-----------
+-- __mod --
+-----------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { x = 17 }
+    local u = { x = 3 }
+    local m = {
+      __mod = function(a, b)
+        if type(a) == "table" then
+          a = a.x
+        end
+        if type(b) == "table" then
+          b = b.x
+        end
+        return a % b
+      end
+    }
+    
+    setmetatable( t, m )
+    setmetatable( u, m )
+
+    return 
+      100 % t, 
+        t % 2,
+        t % u
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__mod", env, libs, src)
+
+  test:var_eq(1, 15)
+  test:var_eq(2,  1)
+  test:var_eq(3,  2)
+end
+
+-----------
+-- __pow --
+-----------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { x = 5 }
+    local u = { x = 3 }
+    local m = {
+      __pow = function(a, b)
+        if type(a) == "table" then
+          a = a.x
+        end
+        if type(b) == "table" then
+          b = b.x
+        end
+        return a ^ b
+      end
+    }
+    
+    setmetatable( t, m )
+    setmetatable( u, m )
+
+    return 
+      2 ^ t, 
+      t ^ 2,
+      t ^ u
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__pow", env, libs, src)
+
+  test:var_eq(1,  32)
+  test:var_eq(2,  25)
+  test:var_eq(3, 125)
+end
+
+--------------
+-- __concat --
+--------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { x = "world" }
+    local u = { x = "!" }
+    local m = {
+      __concat = function(a, b)
+        if type(a) == "table" then
+          a = a.x
+        end
+        if type(b) == "table" then
+          b = b.x
+        end
+        return a .. b
+      end
+    }
+    
+    setmetatable( t, m )
+    setmetatable( u, m )
+
+    return 
+      "hello " .. t, 
+        t .. "!",
+        t .. u
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__concat", env, libs, src)
+
+  test:var_eq(1, "hello world")
+  test:var_eq(2, "world!")
+  test:var_eq(3, "world!")
+end
+
+--------------------------------------------------------------------------------------------------------------------------
+-- Bitwise
+-----------
+-- __band --
+-----------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { x = 17 }
+    local u = { x = 3 }
+    local m = {
+      __band = function(a, b)
+        if type(a) == "table" then
+          a = a.x
+        end
+        if type(b) == "table" then
+          b = b.x
+        end
+        return a & b
+      end
+    }
+    
+    setmetatable( t, m )
+    setmetatable( u, m )
+
+    return 
+      0x3A & t, 
+         t & 0x3A,
+         t & u
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__band", env, libs, src)
+
+  test:var_eq(1, 16)
+  test:var_eq(2, 16)
+  test:var_eq(3,  2)
+end
+
+-----------
+-- __bor --
+-----------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { x = 17 }
+    local u = { x = 3 }
+    local m = {
+      __bor = function(a, b)
+        if type(a) == "table" then
+          a = a.x
+        end
+        if type(b) == "table" then
+          b = b.x
+        end
+        return a | b
+      end
+    }
+    
+    setmetatable( t, m )
+    setmetatable( u, m )
+
+    return 
+      0x3A | t, 
+         t | 0x3A,
+         t | u
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__bor", env, libs, src)
+
+  test:var_eq(1, 59)
+  test:var_eq(2, 59)
+  test:var_eq(3, 19)
+end
+
+------------
+-- __bxor --
+------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { x = 17 }
+    local u = { x = 3 }
+    local m = {
+      __bor = function(a, b)
+        if type(a) == "table" then
+          a = a.x
+        end
+        if type(b) == "table" then
+          b = b.x
+        end
+        return a ~ b
+      end
+    }
+    
+    setmetatable( t, m )
+    setmetatable( u, m )
+
+    return 
+      0x3A ~ t, 
+         t ~ 0x3A,
+         t ~ u
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__bor", env, libs, src)
+
+  test:var_eq(1, 43)
+  test:var_eq(2, 43)
+  test:var_eq(3, 18)
+end
+
+------------
+-- __shl --
+------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { x = 17 }
+    local u = { x = 3 }
+    local m = {
+      __shl = function(a, b)
+        if type(a) == "table" then
+          a = a.x
+        end
+        if type(b) == "table" then
+          b = b.x
+        end
+        return a << b
+      end
+    }
+    
+    setmetatable( t, m )
+    setmetatable( u, m )
+
+    return 
+      3 << t, 
+      t << 3,
+      t << u
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__shl", env, libs, src)
+
+  test:var_eq(1, 393216)
+  test:var_eq(2,    136)
+  test:var_eq(3,    136)
+end
+
+------------
+-- __shr -- (arithmetic)
+------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { x = 5 }
+    local u = { x = 2 }
+    local m = {
+      __shr = function(a, b)
+        if type(a) == "table" then
+          a = a.x
+        end
+        if type(b) == "table" then
+          b = b.x
+        end
+        return a >> b
+      end
+    }
+    
+    setmetatable( t, m )
+    setmetatable( u, m )
+
+    return 
+      0xF17C >> t, 
+      t >> 1,
+      t >> u
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__shr", env, libs, src)
+
+  test:var_eq(1, 1931)
+  test:var_eq(2,    2)
+  test:var_eq(3,    1)
+end
+
+------------
+-- __ashr -- (logical)
+------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { x = 5 }
+    local u = { x = 2 }
+    local m = {
+      __ashr = function(a, b)
+        if type(a) == "table" then
+          a = a.x
+        end
+        if type(b) == "table" then
+          b = b.x
+        end
+        return a >>> b
+      end
+    }
+    
+    setmetatable( t, m )
+    setmetatable( u, m )
+
+    return 
+      0xF17C >>> t, 
+      t >>> 1,
+      t >>> u
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__ashr", env, libs, src)
+
+  test:var_eq(1, 1931)
+  test:var_eq(2,    2)
+  test:var_eq(3,    1)
+end
+-----------------------------------------------------------------------------------------------------------------------------------------
+-- Equivalence / Comparison
+----------
+-- __eq --
+----------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { x = "world" }
+    local u = { x = "!" }
+    local m = {
+      __eq = function(a, b)
+        return a.x == b.x
+      end
+    }
+    
+    setmetatable( t, m )
+    setmetatable( u, m )
+
+    return 
+      "hello " == t, 
+        t == "!",
+        t == u
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__concat", env, libs, src)
+
+  test:var_isFalse(1)
+  test:var_isFalse(2)
+  test:var_isTrue(3)
+end
+
+----------
+-- __lt --
+----------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { x = 2 }
+    local u = { x = 3 }
+    local m = {
+      __lt = function(a, b)
+        return a.x < b.x
+      end
+    }
+    
+    setmetatable( t, m )
+    setmetatable( u, m )
+
+    return 
+      1 < t, 
+      t < 5,
+      t < u,
+      2 < t
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__lt", env, libs, src)
+
+  test:var_isTrue(1)
+  test:var_isTrue(2)
+  test:var_isTrue(3)
+  test:var_isFalse(4)
+end
+
+----------
+-- __le --
+----------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { x = 2 }
+    local u = { x = 3 }
+    local m = {
+      __lt = function(a, b)
+        return a.x <= b.x
+      end
+    }
+    
+    setmetatable( t, m )
+    setmetatable( u, m )
+
+    return 
+      1 <= t, 
+      t <= 5,
+      t <= u,
+      2 <= t,
+      99 <= t
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__le", env, libs, src)
+
+  test:var_isTrue(1)
+  test:var_isTrue(2)
+  test:var_isTrue(3)
+  test:var_isTrue(4)
+  test:var_isFalse(5)
 end
 
 return tester
