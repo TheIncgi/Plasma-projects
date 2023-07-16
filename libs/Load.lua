@@ -1766,7 +1766,22 @@ function Loader.eval( postfix, scope, line )
           if a.type == "function" or b.type == "function" then
             error("attempt to multiply "..a.type.." with "..b.type.." on line "..token.line)
           end
-          table.insert(stack, val(a.value*b.value))
+
+          local event
+          if a.type == "table" then
+            event = Loader.getMetaEvent( a, "__mul" )
+          end
+          if not event and b.type == "table" then
+            event = Loader.getMetaEvent( b, "__mul" )
+          end
+
+          if event and event.type == "function" then
+            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
+              table.insert(stack, result.value)
+            end)
+          else
+            table.insert(stack, val(a.value*b.value))
+          end
 
         elseif token.value == "/" then
           local b, a = pop(stack, scope, line), pop(stack, scope, line)
