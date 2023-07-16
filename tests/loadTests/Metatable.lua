@@ -790,7 +790,7 @@ do
     local t = { x = 17 }
     local u = { x = 3 }
     local m = {
-      __bor = function(a, b)
+      __bxor = function(a, b)
         if type(a) == "table" then
           a = a.x
         end
@@ -810,7 +810,7 @@ do
          t ~ u
   ]=]
 
-  local test = testUtils.codeTest(tester, "__bor", env, libs, src)
+  local test = testUtils.codeTest(tester, "__bxor", env, libs, src)
 
   test:var_eq(1, 43)
   test:var_eq(2, 43)
@@ -965,7 +965,7 @@ do
         t == u
   ]=]
 
-  local test = testUtils.codeTest(tester, "__concat", env, libs, src)
+  local test = testUtils.codeTest(tester, "__eq", env, libs, src)
 
   test:var_isFalse(1)
   test:var_isFalse(2)
@@ -986,7 +986,13 @@ do
     local u = { x = 3 }
     local m = {
       __lt = function(a, b)
-        return a.x < b.x
+        if type(a) == "table" then
+          a = a.x
+        end
+        if type(b) == "table" then
+          b = b.x
+        end
+        return a < b
       end
     }
     
@@ -1021,8 +1027,14 @@ do
     local t = { x = 2 }
     local u = { x = 3 }
     local m = {
-      __lt = function(a, b)
-        return a.x <= b.x
+      __le = function(a, b)
+        if type(a) == "table" then
+          a = a.x
+        end
+        if type(b) == "table" then
+          b = b.x
+        end
+        return a <= b
       end
     }
     

@@ -8,9 +8,10 @@ local Net = {}
 Loader.tableIndexes = {}
 Loader.strings = {}
 Loader.metatables = {
-  string = {}
+  string = {value={}, type="table"}
 }
 
+Loader.tableIndexes[ Loader.metatables.string.value ] = {}
 
 --[table][raw key] -> wrapped key
 setmetatable(Loader.tableIndexes, {
@@ -1524,7 +1525,7 @@ function Loader.getMetaEvent( tableValue, eventName )
   if not meta or meta.type == "nil" then
     return NIL
   end
-  if meta.type=="nil" then return NIL end
+  
   local index = Loader.getTableIndex( meta )
   local k = index[ eventName ]
   return meta.value[ k ] or NIL
@@ -1944,8 +1945,8 @@ function Loader.eval( postfix, scope, line )
 
           local eventA = Loader.getMetaEvent( a, "__le" )
           local eventB = Loader.getMetaEvent( b, "__le" )
-          if eventA and eventA.type == "funciton" and eventA == eventB then
-            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
+          if (eventA and eventA.type == "function") or (eventB and eventB.type == "function") then
+            Loader.callFunc( eventA.type=="function" and eventA or eventB, Loader._varargs( a, b ), function(result) --varargs result
               table.insert(stack, result.value)
             end)
           else
@@ -1961,8 +1962,8 @@ function Loader.eval( postfix, scope, line )
 
           local eventA = Loader.getMetaEvent( a, "__le" )
           local eventB = Loader.getMetaEvent( b, "__le" )
-          if eventA and eventA.type == "funciton" and eventA == eventB then
-            Loader.callFunc( event, Loader._varargs( b, a ), function(result) --varargs result, args swapped
+          if (eventA and eventA.type == "function") or (eventB and eventB.type == "function") then
+            Loader.callFunc( eventA.type=="function" and eventA or eventB, Loader._varargs( b, a ), function(result) --varargs result, args swapped
               table.insert(stack, result.value)
             end)
           else
@@ -1978,8 +1979,8 @@ function Loader.eval( postfix, scope, line )
 
           local eventA = Loader.getMetaEvent( a, "__lt" )
           local eventB = Loader.getMetaEvent( b, "__lt" )
-          if eventA and eventA.type == "funciton" and eventA == eventB then
-            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
+          if (eventA and eventA.type == "function") or (eventB and eventB.type == "function") then
+            Loader.callFunc( eventA.type=="function" and eventA or eventB, Loader._varargs( a, b ), function(result) --varargs result
               table.insert(stack, result.value)
             end)
           else
@@ -1994,8 +1995,8 @@ function Loader.eval( postfix, scope, line )
 
           local eventA = Loader.getMetaEvent( a, "__lt" )
           local eventB = Loader.getMetaEvent( b, "__lt" )
-          if eventA and eventA.type == "funciton" and eventA == eventB then
-            Loader.callFunc( event, Loader._varargs( b, a ), function(result) --varargs result, args swapped
+          if (eventA and eventA.type == "function") or (eventB and eventB.type == "function") then
+            Loader.callFunc( eventA.type=="function" and eventA or eventB, Loader._varargs( b, a ), function(result) --varargs result, args swapped
               table.insert(stack, result.value)
             end)
           else
@@ -2085,7 +2086,7 @@ function Loader.eval( postfix, scope, line )
           else
             table.insert(stack, val(a.value % b.value))
           end
-          
+
         elseif token.value == "-unm" then --token cleanup does some of this already
           local a = pop(stack, scope, line)
           if a.type == "function" then
