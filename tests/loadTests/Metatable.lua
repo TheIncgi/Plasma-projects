@@ -135,5 +135,129 @@ do
   test:var_eq(1, 11)
 end
 
+----------------
+-- getmetatable --
+----------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = {}
+    local u = {}
+    setmetatable( t, u )
+    
+    return getmetatable( t ) == u
+  ]=]
+
+  local test = testUtils.codeTest(tester, "getmetatable", env, libs, src)
+
+  test:var_isTrue(1)
+end
+
+-----------------
+-- __metatable --
+-----------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = {}
+    local u = {}
+    setmetatable( t, {
+      __metatable = u
+    })
+
+    return getmetatable( t ) == u
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__metatable", env, libs, src)
+
+  test:var_isTrue(1)
+end
+
+------------------------------
+-- __metatable is protected --
+------------------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = {}
+    local u = {}
+
+    setmetatable( t, {
+      __metatable = u
+    })
+
+    setmetatable( t, {
+      __metatable = u
+    })
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__metatable is protected", env, libs, src)
+
+  test:expectError("cannot change a protected metatable")
+end
+
+-----------------------
+-- __tostring string --
+-----------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = {}
+    
+    setmetatable( t, {
+      __tostring = "ok"
+    })
+
+    return tostring( t )
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__tostring string", env, libs, src)
+
+  test:var_eq(1, "ok")
+end
+
+---------------------
+-- __tostring func --
+---------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = {
+      z = "ok"
+    }
+    
+    setmetatable( t, {
+      __tostring = function( x )
+        return x.z
+      end
+    })
+
+    return tostring( t )
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__tostring func", env, libs, src)
+
+  test:var_eq(1, "ok")
+end
 
 return tester

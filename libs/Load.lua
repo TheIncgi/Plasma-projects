@@ -1548,6 +1548,7 @@ function Loader.setmetatable( tableValue, metatableValue )
     error("cannot change a protected metatable")
   end
   Loader.metatables[ tableValue.value ] = metatableValue.value
+  return table
 end
 
 --sync
@@ -2020,8 +2021,20 @@ function Scope:addGlobals()
   --tostring(table.unpack{nil}) is an error
   --tostring( nil ) is not...
   self:setNativeFunc( "tostring", function( x )
-    return tostring( x )
-  end )
+    if x.type == "table" then
+      local event = Loader.getMetaEvent( x, "__tostring" )
+      if event and event.type == "function" then
+        Loader.callFunc( event, x, function( str ) --varargs result
+          Async.insertTasks(Async.RETURN("tostring metaevent result", {str.value} ))
+        end)
+      elseif event and event.type == "str" then
+        return event
+      else
+        return Loader._val(tostring( x.value ))
+      end
+    end
+    return Loader._val(tostring( x.value ))
+  end, false, false )
 
   self:setNativeFunc( "ipairs",   function(tbl)
     local indexer = Loader.tableIndexes[tbl.value]
