@@ -307,6 +307,8 @@ Loader._ops = {
 	--access
 	["."] = 9,
 	[":"] = 9,
+  --unary minus
+  ["-unm"] = 8.5, --not matched with pattern exactly, created during cleanup
 	--not,len
   ["not"] = 8,
 	-- ["!"] = 8,
@@ -345,7 +347,8 @@ Loader._ops = {
 
 Loader._rightAssociate = {
 	["^"] = true,
-  ["not"] = true
+  ["not"] = true,
+  ["-unm"] = true,
 }
 
 
@@ -518,7 +521,7 @@ function Loader.cleanupTokens( tokens )
         if prior and prior.value == "-"
         and ((twicePrior and twicePrior.type == "op" and (
           twicePrior.value ~= ")" and twicePrior.value ~= "}" and twicePrior.value ~= "]" ))
-         or twicePrior == nil) then
+         or twicePrior == nil or (twicePrior and twicePrior.type=="keyword")) then
           table.remove(tokens, index-1)
           infoToken.value = -infoToken.value
           index = index-1
@@ -614,6 +617,13 @@ function Loader.cleanupTokens( tokens )
           index = index + 3 --skip to after )
           return --continue
         end
+      elseif tokenType=="var" then
+        if prior and prior.value == "-"
+        and ((twicePrior and twicePrior.type == "op" and (
+          twicePrior.value ~= ")" and twicePrior.value ~= "}" and twicePrior.value ~= "]" ))
+         or twicePrior == nil or (twicePrior and twicePrior.type=="keyword")) then
+          prior.value = "-unm"
+        end
       end
 
       tokens[index] = infoToken
@@ -703,6 +713,7 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma,
     ["("]   = true,
     ["{"]   = true,
     ["["]   = true,
+    ["-unm"] = true,
   }
   if tokens[start].type=="op"then
     if not startPermitted[tokens[start].value] then
@@ -792,7 +803,7 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma,
               requiresValue = true
             end
           end
-        elseif startPermitted[token.value] then
+        elseif token.type == "op" and startPermitted[token.value] then
           error("Unexpected token "..token.value.." in expression on line "..token.line)
         else
           if token.value == "," then
@@ -1868,6 +1879,22 @@ function Loader.eval( postfix, scope, line )
             error("attempt to preform modulo on "..a.type.." with "..b.type.." on line "..token.line)
           end
           table.insert(stack, val(a.value % b.value))
+        elseif token.value == "-unm" then --token cleanup does some of this already
+          local a = pop(stack, scope, line)
+          if a.type == "function" then
+            error("can't do unary minus on a function")
+          end
+
+          if a.type == "table" then
+            local event = Loader.getMetaEvent( a, "__unm" )
+            if event and event.type == "function" then
+              Loader.callFunc( event, Loader._varargs( a ), function( result ) --varargs
+                table.insert(stack, result.value )
+              end)
+            end
+          else
+            table.insert(stack, val(-a.value))
+          end
         -- elseif token.value == "" then
         else
           error("Unhandled token "..token.value)
