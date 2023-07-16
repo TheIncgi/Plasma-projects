@@ -109,5 +109,31 @@ do
   test:var_eq(1, "ok")
 end
 
+----------------
+-- __call --
+----------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = {}
+
+    setmetatable( t, {
+      __call = function( t, arg )
+        return arg + 1
+      end
+    })
+
+    return t( 10 )
+  ]=]
+
+  local test = testUtils.codeTest(tester, "__call", env, libs, src)
+
+  test:var_eq(1, 11)
+end
+
 
 return tester

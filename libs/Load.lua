@@ -1644,6 +1644,12 @@ function Loader.eval( postfix, scope, line )
           if func.type == "table" then
             local __call = Loader.getMetaEvent( func, "__call" )
             if __call and __call.type=="function" then
+              if args.type ~= varargs then
+                args = Loader._varargs( func, args )
+              else
+                table.insert( args.varargs, func )
+              end
+              args.value = func
               func = __call
             end
           end
@@ -2455,8 +2461,6 @@ function Loader.execute( instructions, env, ... )
                 else
                   local nameVal = Loader._val(target.name)
                   Loader.assignToTableWithEvents( target.place, nameVal, stack[i] )
-                  -- target.place.value[nameVal] = stack[i]
-                  -- Loader.tableIndexes[target.place.value][target.name] = nameVal
                 end
               end
               return true
