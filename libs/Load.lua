@@ -307,8 +307,9 @@ Loader._ops = {
 	--access
 	["."] = 9,
 	[":"] = 9,
-  --unary minus
+  --unary minus, unary bitwise not
   ["-unm"] = 8.5, --not matched with pattern exactly, created during cleanup
+  ["~ubn"] = 8.5, --not matched with pattern exactly, created during cleanup
 	--not,len
   ["not"] = 8,
 	-- ["!"] = 8,
@@ -322,7 +323,16 @@ Loader._ops = {
 	["%"] = 6, --mod
 	["+"] = 5,
 	["-"] = 5,
-  [".."] = 4.5, --concat
+  --bitshift
+  [">>"] = 4.75,
+  [">>>"] = 4.75,
+  ["<<"] = 4.75,
+  --bitwise
+  ["&"] = 4.6, --and
+  ["|"] = 4.6, --or
+  ["~"] = 4.6, --xor
+  --concat
+  [".."] = 4.5,
 	--compare
 	["=="] = 4,
 	-- ["!="] = 4,
@@ -350,6 +360,7 @@ Loader._rightAssociate = {
 	["^"] = true,
   ["not"] = true,
   ["-unm"] = true,
+  ["~ubn"] = true,
 }
 
 
@@ -715,6 +726,7 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma,
     ["{"]   = true,
     ["["]   = true,
     ["-unm"] = true,
+    ["~ubn"] = true,
   }
   if tokens[start].type=="op"then
     if not startPermitted[tokens[start].value] then
@@ -1893,7 +1905,16 @@ function Loader.eval( postfix, scope, line )
             table.insert(stack, val(a == b))
             return --continue
           end
-          table.insert(stack, val(a.value == b.value))
+
+          local eventA = Loader.getMetaEvent( a, "__eq" )
+          local eventB = Loader.getMetaEvent( b, "__eq" )
+          if eventA and eventA.type == "funciton" and eventA == eventB then
+            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
+              table.insert(stack, result.value)
+            end)
+          else
+            table.insert(stack, val(a.value == b.value))
+          end
 
         elseif token.value == "~=" then
           local b, a = pop(stack, scope, line), pop(stack, scope, line)
@@ -1904,35 +1925,82 @@ function Loader.eval( postfix, scope, line )
             table.insert(stack, Loaders.constants["false"])
             return --continue
           end
-          table.insert(stack, val(a.value ~= b.value))
+
+          local eventA = Loader.getMetaEvent( a, "__eq" )
+          local eventB = Loader.getMetaEvent( b, "__eq" )
+          if eventA and eventA.type == "funciton" and eventA == eventB then
+            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
+              table.insert(stack, not result.value)
+            end)
+          else
+            table.insert(stack, val(a.value ~= b.value))
+          end
 
         elseif token.value == "<=" then
           local b, a = pop(stack, scope, line), pop(stack, scope, line)
           if a.type == "function" or b.type == "function" then
             error("attempt to compare "..a.type.." with "..b.type.." using <= on line "..token.line)
           end
-          table.insert(stack, val(a.value<=b.value))
+
+          local eventA = Loader.getMetaEvent( a, "__le" )
+          local eventB = Loader.getMetaEvent( b, "__le" )
+          if eventA and eventA.type == "funciton" and eventA == eventB then
+            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
+              table.insert(stack, result.value)
+            end)
+          else
+            table.insert(stack, val(a.value<=b.value))
+          end
+          
 
         elseif token.value == ">=" then
           local b, a = pop(stack, scope, line), pop(stack, scope, line)
           if a.type == "function" or b.type == "function" then
             error("attempt to compare "..a.type.." with "..b.type.." using >= on line "..token.line)
           end
-          table.insert(stack, val(a.value>=b.value))
+
+          local eventA = Loader.getMetaEvent( a, "__le" )
+          local eventB = Loader.getMetaEvent( b, "__le" )
+          if eventA and eventA.type == "funciton" and eventA == eventB then
+            Loader.callFunc( event, Loader._varargs( b, a ), function(result) --varargs result, args swapped
+              table.insert(stack, result.value)
+            end)
+          else
+            table.insert(stack, val(a.value>=b.value))
+          end
+
 
         elseif token.value == "<" then
           local b, a = pop(stack, scope, line), pop(stack, scope, line)
           if a.type == "function" or b.type == "function" then
             error("attempt to compare "..a.type.." with "..b.type.." using < on line "..token.line)
           end
-          table.insert(stack, val(a.value < b.value))
+
+          local eventA = Loader.getMetaEvent( a, "__lt" )
+          local eventB = Loader.getMetaEvent( b, "__lt" )
+          if eventA and eventA.type == "funciton" and eventA == eventB then
+            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
+              table.insert(stack, result.value)
+            end)
+          else
+            table.insert(stack, val(a.value < b.value))
+          end
 
         elseif token.value == ">" then
           local b, a = pop(stack, scope, line), pop(stack, scope, line)
           if a.type == "function" or b.type == "function" then
             error("attempt to compare "..a.type.." with "..b.type.." using > on line "..token.line)
           end
-          table.insert(stack, val(a.value > b.value))
+
+          local eventA = Loader.getMetaEvent( a, "__lt" )
+          local eventB = Loader.getMetaEvent( b, "__lt" )
+          if eventA and eventA.type == "funciton" and eventA == eventB then
+            Loader.callFunc( event, Loader._varargs( b, a ), function(result) --varargs result, args swapped
+              table.insert(stack, result.value)
+            end)
+          else
+            table.insert(stack, val(a.value > b.value))
+          end
 
         elseif token.value == "and" then
           local b, a = pop(stack, scope, line), pop(stack, scope, line)
@@ -2002,7 +2070,22 @@ function Loader.eval( postfix, scope, line )
           if a.type == "function" or b.type == "function" then
             error("attempt to preform modulo on "..a.type.." with "..b.type.." on line "..token.line)
           end
-          table.insert(stack, val(a.value % b.value))
+          local event
+          if a.type == "table" then
+            event = Loader.getMetaEvent( a, "__mod" )
+          end
+          if not event and b.type == "table" then
+            event = Loader.getMetaEvent( b, "__mod" )
+          end
+
+          if event and event.type == "function" then
+            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
+              table.insert(stack, result.value)
+            end)
+          else
+            table.insert(stack, val(a.value % b.value))
+          end
+          
         elseif token.value == "-unm" then --token cleanup does some of this already
           local a = pop(stack, scope, line)
           if a.type == "function" then
@@ -2018,6 +2101,155 @@ function Loader.eval( postfix, scope, line )
             end
           else
             table.insert(stack, val(-a.value))
+          end
+        
+        elseif token.value == "~ubm" then --token cleanup does some of this already
+          local a = pop(stack, scope, line)
+          if a.type == "function" then
+            error("can't do unary minus on a function")
+          end
+
+          if a.type == "table" then
+            local event = Loader.getMetaEvent( a, "__bnot" )
+            if event and event.type == "function" then
+              Loader.callFunc( event, Loader._varargs( a ), function( result ) --varargs
+                table.insert(stack, result.value )
+              end)
+            end
+          else
+            table.insert(stack, val(bit32.bnot(a.value)))
+          end
+        
+        elseif token.value == "&" then
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" or b.type == "function" then
+            error("attempt to add "..a.type.." with "..b.type.." on line "..token.line)
+          end
+
+          local event
+          if a.type == "table" then
+            event = Loader.getMetaEvent( a, "__band" )
+          end
+          if not event and b.type == "table" then
+            event = Loader.getMetaEvent( b, "__band" )
+          end
+
+          if event and event.type == "function" then
+            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
+              table.insert(stack, result.value)
+            end)
+          else
+            table.insert(stack, val(bit32.band(a.value,b.value)))
+          end
+        
+        elseif token.value == "|" then
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" or b.type == "function" then
+            error("attempt to add "..a.type.." with "..b.type.." on line "..token.line)
+          end
+
+          local event
+          if a.type == "table" then
+            event = Loader.getMetaEvent( a, "__bor" )
+          end
+          if not event and b.type == "table" then
+            event = Loader.getMetaEvent( b, "__bor" )
+          end
+
+          if event and event.type == "function" then
+            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
+              table.insert(stack, result.value)
+            end)
+          else
+            table.insert(stack, val(bit32.bor(a.value,b.value)))
+          end
+        
+        elseif token.value == "~" then
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" or b.type == "function" then
+            error("attempt to add "..a.type.." with "..b.type.." on line "..token.line)
+          end
+
+          local event
+          if a.type == "table" then
+            event = Loader.getMetaEvent( a, "__bxor" )
+          end
+          if not event and b.type == "table" then
+            event = Loader.getMetaEvent( b, "__bxor" )
+          end
+
+          if event and event.type == "function" then
+            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
+              table.insert(stack, result.value)
+            end)
+          else
+            table.insert(stack, val(bit32.bxor(a.value, b.value)))
+          end
+
+        elseif token.value == ">>" then --logical shift
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" or b.type == "function" then
+            error("attempt to add "..a.type.." with "..b.type.." on line "..token.line)
+          end
+
+          local event
+          if a.type == "table" then
+            event = Loader.getMetaEvent( a, "__shr" )
+          end
+          if not event and b.type == "table" then
+            event = Loader.getMetaEvent( b, "__shr" )
+          end
+
+          if event and event.type == "function" then
+            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
+              table.insert(stack, result.value)
+            end)
+          else
+            table.insert(stack, val(bit32.rshift(a.value, b.value)))
+          end
+
+        elseif token.value == ">>>" then --logical shift
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" or b.type == "function" then
+            error("attempt to add "..a.type.." with "..b.type.." on line "..token.line)
+          end
+
+          local event
+          if a.type == "table" then
+            event = Loader.getMetaEvent( a, "__ashr" )
+          end
+          if not event and b.type == "table" then
+            event = Loader.getMetaEvent( b, "__ashr" )
+          end
+
+          if event and event.type == "function" then
+            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
+              table.insert(stack, result.value)
+            end)
+          else
+            table.insert(stack, val(bit32.arshift(a.value, b.value)))
+          end
+        
+        elseif token.value == "<<" then --logical shift
+          local b, a = pop(stack, scope, line), pop(stack, scope, line)
+          if a.type == "function" or b.type == "function" then
+            error("attempt to add "..a.type.." with "..b.type.." on line "..token.line)
+          end
+
+          local event
+          if a.type == "table" then
+            event = Loader.getMetaEvent( a, "__shl" )
+          end
+          if not event and b.type == "table" then
+            event = Loader.getMetaEvent( b, "__shl" )
+          end
+
+          if event and event.type == "function" then
+            Loader.callFunc( event, Loader._varargs( a, b ), function(result) --varargs result
+              table.insert(stack, result.value)
+            end)
+          else
+            table.insert(stack, val(bit32.lshift(a.value, b.value)))
           end
         -- elseif token.value == "" then
         else
