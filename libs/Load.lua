@@ -2109,29 +2109,10 @@ function Loader.eval( postfix, scope, line )
           end
 
         elseif token.value == "and" then
-          local b, a = pop(stack, scope, line), pop(stack, scope, line)
-          if a.type == "function" then
-            a = true
-          else
-            a = a.value
-          end
-
-          if a and b.type == "function" then
-            table.insert(stack, b)
-            return --continue
-          end
-          table.insert(stack, val(a and b.value))
+          --handled in short_circuit
 
         elseif token.value == "or" then
-          local b, a = pop(stack, scope, line), pop(stack, scope, line)
-          if a.type == "function" then
-            table.insert(stack, a)
-            return --continue
-          elseif b.type == "function" then
-            table.insert(stack, b)
-            return --continue
-          end
-          table.insert(stack, val(a.value or b.value))
+          --handled in short_circuit
 
         elseif token.value == ".." then
           local b, a = pop(stack, scope, line), pop(stack, scope, line)
