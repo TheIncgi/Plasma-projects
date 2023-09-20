@@ -25,7 +25,7 @@ https://github.com/users/TheIncgi/projects/2/views/1
 [This is the file](https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua)\
 There's a huge amount of code here, but don't worry, the usage is pretty simple. \
 This code is designed to run in a `Lua Program` node in plasma (but you could run it elsewhere if you wanted) \
-and it basically just get's coppied and pasted.
+and it basically just get's copied and pasted.
 
 ### Loading a program to run
 
@@ -62,7 +62,7 @@ Tests rely on another library of mine [That's No Moon](https://github.com/TheInc
 2. Linux: `export UNIT_TEST_LIB_PATH="<path/to>/thats-no-moon"` \
    Windows: `SET UNIT_TEST_LIB_PATH="<path/to>/thats-no-moon"`
 3. Install Lua5.2 if needed
-4. Navicate to the root of this project
+4. Navigate to the root of this project
 5. `lua TestLauncher.lua` (`lua52` on my machine, check the executable)
 
 ### Running tests with vs code
