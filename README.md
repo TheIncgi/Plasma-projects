@@ -68,10 +68,38 @@ Tests rely on another library of mine [That's No Moon](https://github.com/TheInc
 ### Running tests with vs code
 I'm using `Local Lua Debugger` by **Tom Blind** and `Lua` by **keyring**
 
-in your launch.json be sure to add in the env var for the test lib
+in your launch.json be sure to add in the env var for the test lib.\
+You could change `"file"` to point at `TestLauncher.lua` if you prefer.\
+(Also, second config entry might not do anything..)
 ```json
-"env": {
-    "UNIT_TEST_LIB_PATH": "C:/example/path/to/github/thats-no-moon"
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Lua Interpreter",
+            "type": "lua-local",
+            "request": "launch",
+            "program": {
+                "lua": "lua52.exe",
+                "file": "${file}"
+            },
+            "env": {
+                "UNIT_TEST_LIB_PATH": "C:/Users/****/GitHub/That-s-No-Moon-"
+            }
+        },
+        {
+            "name": "Debug Custom Lua Environment",
+            "type": "lua-local",
+            "request": "launch",
+            "program": {
+                "command": "command"
+            },
+            "args": []
+        }
+    ]
 }
 ```
 
