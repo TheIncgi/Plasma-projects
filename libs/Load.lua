@@ -1349,6 +1349,7 @@ function Loader._generatePostfix( infix )
             table.insert( out, token ) --treated as value
             return --continue
           end
+
           if #opStack == 0 
           or (token.value == "(" or token.value == "[" or token.value == "{")
           or ((opStack[#opStack].value == "(" or opStack[#opStack].value == "[" or opStack[#opStack].value == "{") and (
@@ -1389,6 +1390,13 @@ function Loader._generatePostfix( infix )
           end
         else
           table.insert( out, token )
+        end
+        if token.value == "and" or token.value == "or" then
+          --flag insertion
+          table.insert(out, {
+            type = "op",
+            value = "short_circuit"
+          })
         end
         index = index + 1
       end),
@@ -1692,11 +1700,62 @@ function Loader.eval( postfix, scope, line )
   local stack = {}
   local pop = Loader._popVal
   local val = Loader._val
+  local skip = 0
   Async.insertTasks(
     Async.forEach("eval-postfix", function(index, token)
       if token.line then Async.setLine( token.line ) end
+      if index < skip then
+        return --continue
+      end
       if token.type == "op" then
-        if token.call then
+        if token.value == "short_circuit" then
+          local left = pop(stack, scope, line)
+          local truthy = false
+          if left.type == "function" then
+            truthy = true
+          else
+            truthy = not not left.value
+          end
+
+          local flagCount = 1
+          local circuitMethod = false
+          local aheadIndex = false
+          for lookAheadIndex = index + 1, #postfix do
+            local ahead = postfix[lookAheadIndex]
+            if ahead.type == "op" then
+              if ahead.value == "and" or ahead.value == "or" then
+                flagCount = flagCount - 1
+              elseif ahead.value == "short_circuit" then
+                flagCount = flagCount + 1
+              end
+              if flagCount == 0 then
+                circuitMethod = ahead.value
+                aheadIndex = lookAheadIndex
+                break
+              end
+            end
+          end
+
+          if circuitMethod == "and" then
+            if truthy then
+              --evaluate normaly, left value discarded
+            else
+              --skip to aheadIndex + 1, left value pushed back to stack
+              skip = aheadIndex + 1
+              table.insert(stack, left)
+            end
+          elseif circuitMethod == "or" then
+            if truthy then
+              --skip to aheadIndex + 1, right evaluation skipped until and/or in postfix
+              skip = aheadIndex + 1
+              table.insert(stack, left)
+            else
+              --evaluate normaly
+            end
+          else
+            error("invalid syntax: use of and/or")
+          end
+        elseif token.call then
           local args =  pop(stack, scope, line, true)
           local func
 

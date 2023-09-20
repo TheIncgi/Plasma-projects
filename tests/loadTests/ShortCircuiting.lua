@@ -117,7 +117,7 @@ do
     return false and doNotCall(), true or doNotCall()
   ]=]
 
-  local test = testUtils.codeTest(tester, "and or", env, libs, src)
+  local test = testUtils.codeTest(tester, "and,  or", env, libs, src)
 
   test:var_eq(1, false)
 end
