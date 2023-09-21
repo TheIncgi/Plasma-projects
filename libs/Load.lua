@@ -1918,16 +1918,18 @@ function Loader.eval( postfix, scope, line )
           
 
         elseif token.value == "." then
-          local b, a = table.remove(stack), pop(stack, scope, line)
-          if a.type == "str" then
-            a = scope:getRootScope():get("string")
-          end
-          if a.type ~= "table" then
-            error("attempt to index "..a.type.." on line "..token.line)
-          end
+          local b = table.remove(stack)
+          popAsync(stack, scope, line, false, 1, function(a)
+            if a.type == "str" then
+              a = scope:getRootScope():get("string")
+            end
+            if a.type ~= "table" then
+              error("attempt to index "..a.type.." on line "..token.line)
+            end
 
-          Loader.indexTableWithEvents( a, b, function(v)
-            table.insert(stack, v)
+            Loader.indexTableWithEvents( a, b, function(v)
+              table.insert(stack, v)
+            end)
           end)
 
         elseif token.value == ":" then
