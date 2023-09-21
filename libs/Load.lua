@@ -1449,13 +1449,13 @@ function Loader._popVal( stack, scope, line, keepVarargs )
 end
 
 function Loader._tokenValues( scope, keepVarargs, tokens )
-  return Async.insertTasks({
+  return Async.insertTasks(
     {
       label = "Loader._tokenValues - queueAll",
       func = function()
         for i, token in ipairs( tokens ) do
           if token.type == "var" then
-            Async.insertTasks({
+            Async.insertTasks(
               {
                 label = "Loader._tokenValues - queue",
                 func = function()
@@ -1472,9 +1472,10 @@ function Loader._tokenValues( scope, keepVarargs, tokens )
                   return true --task complete
                 end
               }
-            })
+            )
           end
         end
+        return true
       end
     },{
       label = "Loader._tokenValues - results",
@@ -1482,7 +1483,7 @@ function Loader._tokenValues( scope, keepVarargs, tokens )
         return tokens --will be unpacked
       end
     }
-  })
+  )
 end
 
 function Loader._asyncPopValues( stack, scope, line, keepVarargs, nValues, callback )
@@ -1494,7 +1495,7 @@ function Loader._asyncPopValues( stack, scope, line, keepVarargs, nValues, callb
     end
     table.insert(tokens, 1, token)
   end
-  Async.insertTasks({
+  Async.insertTasks(
     {
       label = "Loader._asyncPopValues - tokenValues",
       func = function ()
@@ -1508,7 +1509,7 @@ function Loader._asyncPopValues( stack, scope, line, keepVarargs, nValues, callb
         return true
       end
     }
-  })
+  )
 end
 
 function Loader._val( v, tName )
@@ -1761,7 +1762,9 @@ function Loader.eval( postfix, scope, line )
   if not postfix then error("expected postfix",2) end
   if not scope then error("scope expected for arg 2",2) end
   local stack = {}
+  --deprecated for Loader._asyncPopValues( stack, scope, line, keepVarargs, nValues, callback )
   local pop = Loader._popVal
+  local popAsync = Loader._asyncPopValues
   local val = Loader._val
   local skip = 0
   Async.insertTasks(
@@ -1874,17 +1877,20 @@ function Loader.eval( postfix, scope, line )
           end)
 
         elseif token.index then
-          local b, a = pop(stack, scope, line), pop(stack, scope, line)
-          if a.type == "str" then
-            a = scope:getRootScope():get("string")
-          end
-          if a.type ~= "table" then
-            error("attempt to index "..a.type.." on line "..token.line)
-          end
+          popAsync(stack, scope, line, false, 2, function(a, b)
+            if a.type == "str" then
+              a = scope:getRootScope():get("string")
+            end
+            if a.type ~= "table" then
+              error("attempt to index "..a.type.." on line "..token.line)
+            end
+            
+            Loader.indexTableWithEvents( a, b, function(v)
+              table.insert(stack, v)
+            end )
+          end)
+          --local b, a = pop(stack, scope, line), pop(stack, scope, line)
           
-          Loader.indexTableWithEvents( a, b, function(v)
-            table.insert(stack, v)
-          end )
 
         elseif token.value == "." then
           local b, a = table.remove(stack), pop(stack, scope, line)
@@ -2530,7 +2536,7 @@ end
 
 --name must be unwraped type
 function Scope:setAsync(isLocal, name, value)
-  return Async.insertTasks({
+  return Async.insertTasks(
     {
       label = "Scope:setAsync",
       func = function()
@@ -2550,7 +2556,7 @@ function Scope:setAsync(isLocal, name, value)
         return true
       end
     }
-  })
+  )
 end
 
 function Scope:makeNativeFunc( name, func, unpacker, packer )
@@ -2581,7 +2587,7 @@ end
 
 --name must be unwraped type
 function Scope:getAsync(name)
-  return Async.insertTasks({
+  return Async.insertTasks(
     {
       label = "Scope:getAsync",
       func = function()
@@ -2618,7 +2624,7 @@ function Scope:getAsync(name)
         return {Loader.constants["nil"]}
       end
     }
-  })
+  )
 end
 
 function Scope:getRootScope()
