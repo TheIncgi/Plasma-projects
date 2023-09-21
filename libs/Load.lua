@@ -1933,20 +1933,23 @@ function Loader.eval( postfix, scope, line )
           end)
 
         elseif token.value == ":" then
-          local b, a = table.remove(stack), pop(stack, scope, line)
-          local selfVal = a
-          if a.type == "str" then
-            a = scope:getRootScope():get("string")
-          end
-          if a.type ~= "table" then
-            error("attempt to index "..a.type.." on line "..token.line)
-          end
+          local b = table.remove(stack)
+          popAsync(stack, scope, line, false, 1, function(a)
+          
+            local selfVal = a
+            if a.type == "str" then
+              a = scope:getRootScope():get("string")
+            end
+            if a.type ~= "table" then
+              error("attempt to index "..a.type.." on line "..token.line)
+            end
 
-          Loader.indexTableWithEvents( a, b, function(v)
-            table.insert(stack, v)
-            table.insert(stack, val(selfVal.value, "self"))
+            Loader.indexTableWithEvents( a, b, function(v)
+              table.insert(stack, v)
+              table.insert(stack, val(selfVal.value, "self"))
+            end)
           end)
-
+          
         elseif token.value == "not" then
           local a = pop(stack, scope, line)
           if a.type == "function" then
