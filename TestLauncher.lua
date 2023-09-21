@@ -1,4 +1,4 @@
-local UNIT_TEST_LIB_PATH = os.getenv"UNIT_TEST_LIB_PATH" .."/?.lua" --path to this library on local machine https://github.com/TheIncgi/That-s-No-Moon-
+local UNIT_TEST_LIB_PATH = os.getenv"UNIT_TEST_LIB_PATH" .."/?.lua" --path to this library on local machine https://github.com/TheIncgi/Thats-No-Moon
 package.path = package.path..";"..UNIT_TEST_LIB_PATH
 package.path = package.path..";./tests/?.lua"
 package.path = package.path..";./tests/loadTests/?.lua"
