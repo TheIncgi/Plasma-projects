@@ -1454,6 +1454,18 @@ function Loader._tokenValues( scope, keepVarargs, tokens )
       label = "Loader._tokenValues - queueAll",
       func = function()
         for i, token in ipairs( tokens ) do
+          local varargsTask = {
+            label = "Loader._tokenValues - result",
+            func = function( value )
+              value = value or token
+              if value.type == "varargs" and not keepVarargs then
+                value = value.value
+              end
+              tokens[ i ] = value
+              return true --task complete
+            end
+          }
+
           if token.type == "var" then
             Async.insertTasks(
               {
@@ -1462,17 +1474,10 @@ function Loader._tokenValues( scope, keepVarargs, tokens )
                   scope:getAsync( token.value ) --queued
                   return true --task complete
                 end
-              },{
-                label = "Loader._tokenValues - result",
-                func = function( value )
-                  if value.type == "varargs" and not keepVarargs then
-                    value = value.value
-                  end
-                  tokens[ i ] = value
-                  return true --task complete
-                end
-              }
+              },varargsTask
             )
+          else
+            Async.insertTasks(varargsTask)
           end
         end
         return true
@@ -1960,18 +1965,19 @@ function Loader.eval( postfix, scope, line )
           end)
 
         elseif token.value == "#" then
-          local a = pop(stack, scope, line)
-          if a.value == "function" then
-            error("attempt to get the length of a function on line "..token.line)
-          end
-          local event = Loader.getMetaEvent(a, "__len")
-          if event.type ~= "nil" then
-            Loader.callFunc( event, Loader._varargs( a ), function( size )
-              table.insert(stack, size.value)
-            end)
-          else
-            table.insert(stack, val(#(a.type=="table" and Loader.tableIndexes[a.value] or a.value)))
-          end
+          popAsync(stack, scope, line, false, 1, function(a)
+            if a.value == "function" then
+              error("attempt to get the length of a function on line "..token.line)
+            end
+            local event = Loader.getMetaEvent(a, "__len")
+            if event.type ~= "nil" then
+              Loader.callFunc( event, Loader._varargs( a ), function( size )
+                table.insert(stack, size.value)
+              end)
+            else
+              table.insert(stack, val(#(a.type=="table" and Loader.tableIndexes[a.value] or a.value)))
+            end
+          end)
 
         elseif token.value == "^" then
           local b, a = pop(stack, scope, line), pop(stack, scope, line)
