@@ -1949,14 +1949,15 @@ function Loader.eval( postfix, scope, line )
               table.insert(stack, val(selfVal.value, "self"))
             end)
           end)
-          
+
         elseif token.value == "not" then
-          local a = pop(stack, scope, line)
-          if a.type == "function" then
-            table.insert( stack,  Loader.constants["false"] )
-            return --continue
-          end
-          table.insert(stack, val(not a.value))
+          popAsync(stack, scope, line, false, 1, function(a)
+            if a.type == "function" then
+              table.insert( stack,  Loader.constants["false"] )
+              return --continue
+            end
+            table.insert(stack, val(not a.value))
+          end)
 
         elseif token.value == "#" then
           local a = pop(stack, scope, line)
@@ -2643,7 +2644,9 @@ function Scope:getAsync(name)
         if value then
           return {value}
         end
-        self.parent:getAsync(name)
+        if self.parent then
+          self.parent:getAsync(name)
+        end
         return true
       end
     },{
