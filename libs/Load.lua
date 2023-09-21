@@ -1448,6 +1448,69 @@ function Loader._popVal( stack, scope, line, keepVarargs )
   return value
 end
 
+function Loader._tokenValues( scope, keepVarargs, tokens )
+  return Async.insertTasks({
+    {
+      label = "Loader._tokenValues - queueAll",
+      func = function()
+        for i, token in ipairs( tokens ) do
+          if token.type == "var" then
+            Async.insertTasks({
+              {
+                label = "Loader._tokenValues - queue",
+                func = function()
+                  scope:getAsync( token.value ) --queued
+                  return true --task complete
+                end
+              },{
+                label = "Loader._tokenValues - result",
+                func = function( value )
+                  if value.type == "varargs" and not keepVarargs then
+                    value = value.value
+                  end
+                  tokens[ i ] = value
+                  return true --task complete
+                end
+              }
+            })
+          end
+        end
+      end
+    },{
+      label = "Loader._tokenValues - results",
+      func = function()
+        return tokens --will be unpacked
+      end
+    }
+  })
+end
+
+function Loader._asyncPopValues( stack, scope, line, keepVarargs, nValues, callback )
+  local tokens = {}
+  for i = 1, nValues do
+    local token = table.remove(stack)
+    if not token then
+      error("Error, empty stack from expression on line "..line, 2)
+    end
+    table.insert(tokens, 1, token)
+  end
+  Async.insertTasks({
+    {
+      label = "Loader._asyncPopValues - tokenValues",
+      func = function ()
+        Loader._tokenValues( scope, keepVarargs, tokens )
+        return true
+      end
+    },{
+      label = "Loader._asyncPopValues - callback",
+      func = function( ... )
+        callback( ... )
+        return true
+      end
+    }
+  })
+end
+
 function Loader._val( v, tName )
   return {
     type = tName or type(v),
@@ -1584,7 +1647,7 @@ end
 function Loader.indexTable( tableValue, keyValue )
   local index = Loader.getTableIndex( tableValue )
   local k = index[ keyValue.value ]
-  local v = tableValue.value[ keyValue ] or tableValue.value[ k ]
+  local v = tableValue.value[keyValue] or tableValue.value[ k ]
   return v or Loader.constants["nil"]
 end
 
@@ -2439,16 +2502,55 @@ function Scope:new(name, line, parent, index, env)
   return obj
 end
 
+function Scope:fromTableValue(tableValue, scopeName, line, index )
+  local obj = {
+    tableValue = tableValue,
+    index = index or 1,
+    name = scopeName.."-"..line,
+    --parent = nil,
+    ifState = false,
+    isLoop = false,
+  }
+  self.__index = self
+  return setmetatable(obj, self)
+end
+
 function Scope:getIndex()
   return self.index or self.parent and self.parent:getIndex()
 end
 
 function Scope:set(isLocal, name, value)
+  if self.tableValue then error("Scope based on table value, must be async", 2) end
   if isLocal or self.env[name] or not self.parent then
     self.env[name] = value
   else
     self.parent:set(isLocal, name, value)
   end
+end
+
+--name must be unwraped type
+function Scope:setAsync(isLocal, name, value)
+  return Async.insertTasks({
+    {
+      label = "Scope:setAsync",
+      func = function()
+        if self.env then
+          if isLocal or self.env[name] or not self.parent then
+            self.env[name] = value
+          else
+            self.parent:setAsync(isLocal, name, value)
+          end
+        elseif isLocal or Loader.indexTable( self.tableValue, key ).type~="nil" or not self.parent then
+          name = Loader._val(name)
+          Loader.assignToTableWithEvents( self.tableValue, name, value)
+        else
+          name = Loader._val(name)
+          self.parent:setAsync(isLocal, name, value)
+        end
+        return true
+      end
+    }
+  })
 end
 
 function Scope:makeNativeFunc( name, func, unpacker, packer )
@@ -2465,7 +2567,9 @@ function Scope:setNativeFunc( name, func, unpacker, packer )
   self:set(false, name, self:makeNativeFunc( name, func, unpacker, packer ))
 end
 
+--only usable with plain scopes, not with `fromTableValue` scopes due to metaevents and possible function calls
 function Scope:get(name)
+  if self.tableValue then error("Scope based on table value, must be async", 2) end
   if self.env[name] then
     return self.env[name]
   end
@@ -2473,6 +2577,48 @@ function Scope:get(name)
     return self.parent:get(name)
   end
   return Loader.constants["nil"]
+end
+
+--name must be unwraped type
+function Scope:getAsync(name)
+  return Async.insertTasks({
+    {
+      label = "Scope:getAsync",
+      func = function()
+        if self.env then
+          if self.env[name] then
+            return {self.env[name]}
+          end
+        else
+          name = Loader._val(name)
+          if Loader.indexTable( self.tableValue, name ) then
+            Loader.indexTableWithEvents( self.tableValue, name, function( value )
+              Async.insertTasks({{label = "Scope:getAsync-callback return", func = function()
+                return {value}
+              end}})
+            end )
+          end
+        end
+      end
+    },{
+      label = "Scope:getAsync-pass or parent",
+      func = function(value)
+        if value then
+          return {value}
+        end
+        self.parent:getAsync(name)
+        return true
+      end
+    },{
+      label = "Scope:getAsync-pass or nil",
+      func = function(value)
+        if value then
+          return {value}
+        end
+        return {Loader.constants["nil"]}
+      end
+    }
+  })
 end
 
 function Scope:getRootScope()
@@ -2486,9 +2632,17 @@ end
 function Scope:captureLocals(fenv)
   local fenv = fenv or {}
   if not self.parent then return fenv end --don't capture globals
-  for k,v in pairs( self.env ) do
-    if not fenv[k] then
-      fenv[k] = v
+  if self.env then
+    for k,v in pairs( self.env ) do
+      if not fenv[k] then
+        fenv[k] = v
+      end
+    end
+  else
+    for k,v in pairs( self.tableValue ) do
+      if not fenv[k.value] then
+        fenv[k.value] = v
+      end
     end
   end
   return self.parent:captureLocals( fenv )
@@ -2781,6 +2935,23 @@ function Scope:addGlobals()
   -- self:setNativeFunc( "",  )
 end
 
+--proxy for scripts
+function Scope:getTableValue()
+  if self.tableValue then return self.tableValue end
+  local t = {}
+  local m = {
+    __index = function(t,k)
+      self:get( k.value )
+    end
+  }
+  return Loader._val(setmetatable(t, m))
+end
+
+
+
+function Loader.load( str, scope, envName )
+  --TODO
+end
 ------------------
 --Heap sort
 --i is current tree node
