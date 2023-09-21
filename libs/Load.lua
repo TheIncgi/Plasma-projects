@@ -3015,6 +3015,39 @@ end
 
 function Loader.load( str, scope, envName )
   --TODO
+  Async.insertTasks(
+    {
+      label = "Loader.load - tokenize",
+      func = function()
+        Loader.tokenize(str)
+        return true
+      end
+    },{
+      label = "Loader.load - cleanupTokens",
+      func = function(rawTokens)
+        Loader.cleanupTokens(rawTokens)
+        return true
+      end
+    },{
+      label = "Loader.load - buildInstructions",
+      func = function(tokens)
+        Loader.buildInstructions(tokens)
+        return true
+      end
+    },{
+      label = "Loader.load - batchPostfix",
+      func = function(instructions)
+        Loader.batchPostfix(instructions)
+        return {instructions}
+      end
+    },{
+      label = "todo", --is it func already, need wrapping?
+      func = function(instuctions)
+      end
+    }
+  )
+
+  error"TODO"
 end
 ------------------
 --Heap sort
