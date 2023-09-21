@@ -294,7 +294,7 @@ Loader.keywords = {
 local SINGLE_QUOTE = string.char(39)
 local DOUBLE_QUOTE = string.char(34)
 Loader._patterns = {
-	str = { "'^[^'\n]+'$", '^"[^"\n]+"$' },
+	str = { "^'[^'\n]+'$", '^"[^"\n]+"$' },
 	num = { 
 		int="^[0-9]+$", 
 		float="^[0-9]*%.[0-9]*$",
@@ -1578,8 +1578,16 @@ function Loader.callFunc( func, args, callback )
     )
     
   else
-    for i=1,#func.args do
+    local named = 0
+    for i=1,#func.args do --TODO feature trailing named args? (a, b, ..., c)
+      if func.args[i] == "..." then break end
       func.env:set(true,func.args[i], fArgs[i] or Loader.constants["nil"])
+      named = i
+    end
+    if func.args[named+1] == "..." then
+      func.env:set(true, "...", Loader._varargs( table.unpack(fArgs, named+1) ))
+    else
+      func.env:set(true, "...", nil)
     end
     Async.insertTasks({
       label = "callFunc-callback-return",
@@ -2807,6 +2815,19 @@ function Scope:addGlobals()
   self:setNativeFunc( "setmetatable", Loader.setmetatable, false, false )
   self:setNativeFunc( "rawset", Loader.assignToTable, false, false )
   self:setNativeFunc( "rawget", Loader.indexTable, false, false )
+  self:setNativeFunc( "load", function(src, blockName, mode, env)
+    if mode ~= nil and mode ~="t" then
+      error("load with mode '"..mode.."' is not supported, use 't' or nil")
+    end
+    local scope
+    if env then
+      scope = Scope:fromTable( env )
+    else
+      scope = self:getRootScope()
+    end
+    local line = Async.getLine()
+    Loader.load(src.value, scope, blockName, line) --async return
+  end, false, function( fVal ) return { Loader._varargs(fVal) } end)
 
   ---------------------------------------------------------
   -- math
@@ -3013,8 +3034,9 @@ end
 
 
 
-function Loader.load( str, scope, envName )
+function Loader.load( str, scope, envName, line )
   --TODO
+  local inst
   Async.insertTasks(
     {
       label = "Loader.load - tokenize",
@@ -3037,17 +3059,26 @@ function Loader.load( str, scope, envName )
     },{
       label = "Loader.load - batchPostfix",
       func = function(instructions)
+        inst = instructions
         Loader.batchPostfix(instructions)
-        return {instructions}
+        return true
       end
     },{
-      label = "todo", --is it func already, need wrapping?
-      func = function(instuctions)
+      label = "Loader.load - wrap instructions",
+      func = function()
+        local fval = {
+          env = scope,
+          instructions = inst,
+          line = line,
+          args = {"..."},
+          name = envName,
+          type = "function"
+        }
+
+        return{fval}
       end
     }
   )
-
-  error"TODO"
 end
 ------------------
 --Heap sort
