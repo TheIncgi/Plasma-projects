@@ -1763,7 +1763,7 @@ function Loader.eval( postfix, scope, line )
   if not scope then error("scope expected for arg 2",2) end
   local stack = {}
   --deprecated for Loader._asyncPopValues( stack, scope, line, keepVarargs, nValues, callback )
-  local pop = Loader._popVal
+  local pop = Loader._popVal --function() error("pop deprecated!",2) end
   local popAsync = Loader._asyncPopValues
   local val = Loader._val
   local skip = 0
@@ -1775,106 +1775,131 @@ function Loader.eval( postfix, scope, line )
       end
       if token.type == "op" then
         if token.value == "short_circuit" then
-          local left = pop(stack, scope, line)
-          local truthy = false
-          if left.type == "function" then
-            truthy = true
-          else
-            truthy = not not left.value
-          end
-
-          local flagCount = 1
-          local circuitMethod = false
-          local aheadIndex = false
-          for lookAheadIndex = index + 1, #postfix do
-            local ahead = postfix[lookAheadIndex]
-            if ahead.type == "op" then
-              if ahead.value == "and" or ahead.value == "or" then
-                flagCount = flagCount - 1
-              elseif ahead.value == "short_circuit" then
-                flagCount = flagCount + 1
-              end
-              if flagCount == 0 then
-                circuitMethod = ahead.value
-                aheadIndex = lookAheadIndex
-                break
-              end
-            end
-          end
-
-          if circuitMethod == "and" then
-            if truthy then
-              --evaluate normaly, left value discarded
+          popAsync(stack, scope, line, false, 1, function(left)
+            local truthy = false
+            if left.type == "function" then
+              truthy = true
             else
-              --skip to aheadIndex + 1, left value pushed back to stack
-              skip = aheadIndex + 1
-              table.insert(stack, left)
+              truthy = not not left.value
             end
-          elseif circuitMethod == "or" then
-            if truthy then
-              --skip to aheadIndex + 1, right evaluation skipped until and/or in postfix
-              skip = aheadIndex + 1
-              table.insert(stack, left)
-            else
-              --evaluate normaly
+
+            local flagCount = 1
+            local circuitMethod = false
+            local aheadIndex = false
+            for lookAheadIndex = index + 1, #postfix do
+              local ahead = postfix[lookAheadIndex]
+              if ahead.type == "op" then
+                if ahead.value == "and" or ahead.value == "or" then
+                  flagCount = flagCount - 1
+                elseif ahead.value == "short_circuit" then
+                  flagCount = flagCount + 1
+                end
+                if flagCount == 0 then
+                  circuitMethod = ahead.value
+                  aheadIndex = lookAheadIndex
+                  break
+                end
+              end
             end
-          else
-            error("invalid syntax: use of and/or")
-          end
-        elseif token.call then
-          local args =  pop(stack, scope, line, true)
-          local func
 
-          local expectedMarker
-          if args.type == "argsMarker" then
-            func = pop(stack, scope, line)
-            expectedMarker = args
-            args = Loader._varargs()
-          else
-            expectedMarker = pop(stack, scope, line, true)
-            func = pop(stack, scope, line)
-          end
-
-          if expectedMarker.type ~= "argsMarker" then
-            error("internal error, missing args marker for call")
-          end
-
-          if func.type == "self" then
-            if args.type ~= "varargs" then
-              args = Loader._varargs( args )
-            end
-            args.value = func
-            table.insert(args.varargs, 1, func)
-            func = pop(stack, scope, line)
-          end
-          
-          if func.type == "table" then
-            local __call = Loader.getMetaEvent( func, "__call" )
-            if __call and __call.type=="function" then
-              if args.type ~= "varargs" then
-                args = Loader._varargs( func, args )
+            if circuitMethod == "and" then
+              if truthy then
+                --evaluate normaly, left value discarded
               else
-                table.insert( args.varargs, func )
+                --skip to aheadIndex + 1, left value pushed back to stack
+                skip = aheadIndex + 1
+                table.insert(stack, left)
               end
-              args.value = func
-              func = __call
+            elseif circuitMethod == "or" then
+              if truthy then
+                --skip to aheadIndex + 1, right evaluation skipped until and/or in postfix
+                skip = aheadIndex + 1
+                table.insert(stack, left)
+              else
+                --evaluate normaly
+              end
+            else
+              error("invalid syntax: use of and/or")
             end
-          end
-
-          if func.type ~= "function" then
-            error("attempt to call "..func.type.." on line "..token.line)
-          end
-
-          if args.type ~= "varargs" then
-            args = Loader._varargs( args )
-          end
-
-          Loader.callFunc( func, args, function( result )
-            if result and result.varargs then
-              result.len = math.min(1, #result.varargs )
-            end
-            table.insert( stack, result )
           end)
+        elseif token.call then
+          popAsync(stack, scope, line, true, 1, function(args)
+            local func
+            local expectedMarker
+            Async.insertTasks(
+              {
+                label = "eval token.call - args marker",
+                func = function()
+                  if args.type == "argsMarker" then
+                    popAsync(stack, scope, line, false, 1, function(popped)
+                      func = popped
+                      expectedMarker = args
+                      args = Loader._varargs()
+                    end)
+                  else
+                    popAsync(stack, scope, line, true, 1, function(popped)
+                      expectedMarker = popped
+                      popAsync(stack, scope, line, true, 1, function(popped)
+                        func = popped
+                      end)
+                    end)
+                  end
+                  return true
+                end
+              },{
+                label = "eval token.call - check & self",
+                func = function()
+                  if expectedMarker.type ~= "argsMarker" then
+                    error("internal error, missing args marker for call")
+                  end
+
+                  if func.type == "self" then
+                    if args.type ~= "varargs" then
+                      args = Loader._varargs( args )
+                    end
+                    args.value = func
+                    table.insert(args.varargs, 1, func)
+                    popAsync(stack, scope, line, false, 1, function(popped)
+                      func = popped
+                    end)
+                  end
+                  return true
+                end
+              },{
+                label = "eval token.call - table.__call & call",
+                func = function()
+                  if func.type == "table" then
+                    local __call = Loader.getMetaEvent( func, "__call" )
+                    if __call and __call.type=="function" then
+                      if args.type ~= "varargs" then
+                        args = Loader._varargs( func, args )
+                      else
+                        table.insert( args.varargs, func )
+                      end
+                      args.value = func
+                      func = __call
+                    end
+                  end
+      
+                  if func.type ~= "function" then
+                    error("attempt to call "..func.type.." on line "..token.line)
+                  end
+      
+                  if args.type ~= "varargs" then
+                    args = Loader._varargs( args )
+                  end
+      
+                  Loader.callFunc( func, args, function( result )
+                    if result and result.varargs then
+                      result.len = math.min(1, #result.varargs )
+                    end
+                    table.insert( stack, result )
+                  end)
+                  return true
+                end
+              }
+            )
+          end) --pop async
 
         elseif token.index then
           popAsync(stack, scope, line, false, 2, function(a, b)
@@ -2605,6 +2630,7 @@ function Scope:getAsync(name)
             end )
           end
         end
+        return true
       end
     },{
       label = "Scope:getAsync-pass or parent",
