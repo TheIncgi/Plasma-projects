@@ -83,7 +83,10 @@ function testUtils.setupRequire( Async, Net, commonProxies, paths )
       {
         label = "UNIT TESTING - Require - Net result: "..lastURL,
         func = function()
-          V1 = sources[ lastURL ]
+          -- V1 = sources[ lastURL ]
+          commonProxies.read_var{"src"}.exactCompute(function()
+            return sources[ lastURL ]
+          end)
           Net.sourceCode()
           return true --task complete
           end
