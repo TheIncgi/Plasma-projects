@@ -2797,6 +2797,7 @@ function Scope:setPlasmaInputs()
 end
 
 function Scope:addGlobals()
+  self:set(false, "_G", self:getTableValue())
   self:setNativeFunc( "next",     next )
   self:setNativeFunc( "print",    print )
   self:setNativeFunc( "tonumber", function( x )
