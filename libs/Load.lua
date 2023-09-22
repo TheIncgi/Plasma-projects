@@ -1578,25 +1578,39 @@ function Loader.callFunc( func, args, callback )
     )
     
   else
-    local named = 0
-    for i=1,#func.args do --TODO feature trailing named args? (a, b, ..., c)
-      if func.args[i] == "..." then break end
-      func.env:set(true,func.args[i], fArgs[i] or Loader.constants["nil"])
-      named = i
-    end
-    if func.args[named+1] == "..." then
-      func.env:set(true, "...", Loader._varargs( table.unpack(fArgs, named+1) ))
-    else
-      func.env:set(true, "...", nil)
-    end
-    Async.insertTasks({
-      label = "callFunc-callback-return",
-      func = function( result )
-        callback( result )
-        return true
-      end
-    })
-    Loader.execute(func.instructions, func.env, table.unpack(fArgs))
+    
+    Async.insertTasks(
+      {
+        label = "callFunc-setArgs",
+        func = function()
+          local named = 0
+          for i=1,#func.args do --TODO feature trailing named args? (a, b, ..., c)
+            if func.args[i] == "..." then break end
+            func.env:setAsync(true,func.args[i], fArgs[i] or Loader.constants["nil"])
+            named = i
+          end
+          if func.args[named+1] == "..." then
+            func.env:setAsync(true, "...", Loader._varargs( table.unpack(fArgs, named+1) ))
+          else
+            func.env:setAsync(true, "...", nil)
+          end
+          return true
+        end
+      },{
+        label = "callFunc-execute",
+        func = function()
+          Loader.execute(func.instructions, func.env, table.unpack(fArgs))
+          return true
+        end
+      },{
+        label = "callFunc-callback-return",
+        func = function( result )
+          callback( result )
+          return true
+        end
+      }
+    )
+    
   end
 end
 
@@ -1616,7 +1630,7 @@ end
 
 function Loader.getTableIndex( tableValue )
   if tableValue.type ~= "table" then
-    error("expected table, got "..tableValue.type, 2 )
+    error("expected table, got "..(tableValue.type or "nil"), 2 )
   end
   local index = Loader.tableIndexes[ tableValue.value ]
   if not index then error("internal error, index missing for table") end
@@ -1627,7 +1641,13 @@ end
 function Loader.assignToTableWithEvents( tableValue, keyValue, valueValue )
   if not tableValue then error("expected tableValue",2 ) end
   if not keyValue then error("expected keyValue",2 ) end
-  if not valueValue then error("expected valueValue",2 ) end
+  --if not valueValue then error("expected valueValue",2 ) end
+  if valueValue and valueValue.varargs then
+    valueValue = valueValue.value
+  end
+  if valueValue and valueValue.type == "nil" then
+    valueValue = nil
+  end
   local index = Loader.getTableIndex( tableValue )
   local k = index[ keyValue.value ]
   local v = tableValue.value[ keyValue ] or tableValue.value[ k ]
@@ -2589,7 +2609,9 @@ function Scope:getIndex()
 end
 
 function Scope:set(isLocal, name, value)
-  if self.tableValue then error("Scope based on table value, must be async", 2) end
+  if self.tableValue then
+    error("Scope based on table value, must be async", 2)
+  end
   if isLocal or self.env[name] or not self.parent then
     self.env[name] = value
   else
@@ -2609,12 +2631,13 @@ function Scope:setAsync(isLocal, name, value)
           else
             self.parent:setAsync(isLocal, name, value)
           end
-        elseif isLocal or Loader.indexTable( self.tableValue, key ).type~="nil" or not self.parent then
-          name = Loader._val(name)
-          Loader.assignToTableWithEvents( self.tableValue, name, value)
         else
           name = Loader._val(name)
-          self.parent:setAsync(isLocal, name, value)
+          if isLocal or Loader.indexTable( self.tableValue, name ).type~="nil" or not self.parent then
+            Loader.assignToTableWithEvents( self.tableValue, name, value)
+          else
+            self.parent:setAsync(isLocal, name, value)
+          end
         end
         return true
       end
@@ -2816,17 +2839,20 @@ function Scope:addGlobals()
   self:setNativeFunc( "rawset", Loader.assignToTable, false, false )
   self:setNativeFunc( "rawget", Loader.indexTable, false, false )
   self:setNativeFunc( "load", function(src, blockName, mode, env)
-    if mode ~= nil and mode ~="t" then
+    src = src.value
+    blockName = blockName and blockName.value or "[?]"
+    mode = mode and mode.value or "t"
+    if mode ~= "t" then
       error("load with mode '"..mode.."' is not supported, use 't' or nil")
     end
     local scope
+    local line = Async.getLine()
     if env then
-      scope = Scope:fromTable( env )
+      scope = Scope:fromTableValue( env, blockName, line, 1 )
     else
       scope = self:getRootScope()
     end
-    local line = Async.getLine()
-    Loader.load(src.value, scope, blockName, line) --async return
+    Loader.load(src, scope, blockName, line) --async return
   end, false, function( fVal ) return { Loader._varargs(fVal) } end)
 
   ---------------------------------------------------------
@@ -3268,10 +3294,16 @@ function Loader.execute( instructions, env, ... )
     value = ...,
     varargs = {...}
   }
-  callStack[1]:set("...", prgmArgs)
-
+  
   local index = 1
   return Async.insertTasks(
+    {
+      label = "Loader.execute - setup",
+      func = function()
+        callStack[1]:setAsync("...", prgmArgs)
+        return true
+      end
+    },
     Async.whileLoop("exec", function () return instructions[index] end, function ()
       local inst = instructions[index]
       local top = callStack[#callStack]
@@ -3348,7 +3380,7 @@ function Loader.execute( instructions, env, ... )
               local isLocal = inst.isLocal
               local target = targets[1]
               if target.place == "scope" then
-                top:set( inst.isLocal, target.name, fval )
+                top:setAsync( inst.isLocal, target.name, fval )
               else
                 local nameVal = Loader._val(target.name)
                 target.place.value[nameVal] = fval
