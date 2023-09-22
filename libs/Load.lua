@@ -27,6 +27,11 @@ setmetatable(Loader.metatables, {
   __mode = "v"
 })
 
+local ___log = ""
+function LOG(str)
+  -- ___log = ___log..str.."\n"
+  -- print(___log)
+end
 ------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------
@@ -195,9 +200,10 @@ end
 
 local __args = {}
 function Async.loop()
-  stepsPerLoop = V2 or 10
+  stepsPerLoop = read_var"stepsperloop" or 1
+  
   for steps = 1, stepsPerLoop do
-    if #threads[Async.activeThread] > 0 then
+    if threads and Async.activeThread and threads[Async.activeThread] and #threads[Async.activeThread] > 0 then
       local t = threads[Async.activeThread][1]
       --print(" > ", t.label ,sourceLine(t.func), t.func)
       local value =  t.func( table.unpack(__args) ) 
@@ -212,7 +218,19 @@ function Async.loop()
       else
         error( "Invalid task result during sync",2 )
       end
+    else
+      break
     end
+  end
+  if threads and Async.activeThread and threads[Async.activeThread] then
+    write_var(#threads[Async.activeThread], "tasks")
+    if #threads[Async.activeThread] > 0 then
+      local task = threads[Async.activeThread][1]
+      write_var(task.label, "taskname")
+    else
+    end
+  else
+    write_var(0, "tasks")
   end
 end
 
@@ -3332,7 +3350,7 @@ function Loader.execute( instructions, env, ... )
     {
       label = "Loader.execute - setup",
       func = function()
-        callStack[1]:setAsync("...", prgmArgs)
+        callStack[1]:setVarargs(prgmArgs)
         return true
       end
     },
@@ -3340,7 +3358,7 @@ function Loader.execute( instructions, env, ... )
       local inst = instructions[index]
       local top = callStack[#callStack]
       if inst.line then Async.setLine( inst.line ) end
-      -- print("                       DEBUG: "..inst.line..": "..inst.op.."["..#callStack.."]")
+      -- print("  DEBUG: "..inst.line..": "..inst.op.."["..#callStack.."]")
       if inst.op == "assign" then
         -- local instruction = {
         --   op = "assign",
@@ -3611,7 +3629,50 @@ function Net.require( path )
 end
 
 function Net.sourceCode()
-  Net.result = V1
+  Net.result = read_var"src"
+end
+
+--serialization
+local utils = {}
+function utils.keys( tbl )
+  if type(tbl) ~= "table" then error("utils.keys expected table, got "..type(tbl),2) end
+  local out = {}
+  for a in pairs( tbl ) do
+    out[#out+1] = a
+  end
+  return out  
+end
+function utils.serializeOrdered( tbl, sortFunc, visited )
+  if type(tbl)~="table" then return type(tbl)=="string" and ('"'..tostring(tbl)..'"') or tostring(tbl) end
+  visited = visited or {}
+  if visited[tbl] then
+    return tostring(tbl)
+  end
+  visited[tbl] = true
+  local out = { "{" }
+  local keys = utils.keys(tbl)
+  table.sort( keys, sortFunc or function( a,b )
+    if type(a)~=type(b) then
+      return type(a)<type(b)
+    end
+    return a<b
+  end ) --sortFunc is optional
+  for i,v in ipairs( tbl ) do
+    if #out > 1 then table.insert( out, ', ' ) end
+    table.insert( out, utils.serializeOrdered(v) )
+  end
+  for i,k in ipairs( keys ) do
+    if type(k)~="number" then
+      local v = tbl[k]
+      local tv = type(v)
+      if #out > 1 then table.insert( out, ', ' ) end
+      table.insert( out, k )
+      table.insert( out, ' = ' )
+      table.insert( out,  utils.serializeOrdered(v, sortFunc))
+    end
+  end
+  table.insert(out,"}")
+  return table.concat(out)
 end
 
 --===================================================================================
@@ -3624,24 +3685,28 @@ local Plasma = {}
 --  interfaces  --
 ------------------
 function Loader.run(src)
-  src = src or V1
+  src = src or read_var"src"
   if src then
+    DBG = {}
     Async.insertTasks(
       {
         label = "run-tokenize",
         func = function()
+          DBG.src = src
           Loader.tokenize(src)
           return true
         end
       },{
         label = "run-tokenize->cleanup",
         func = function( rawTokens )
+          DBG.rawTokens = rawTokens
           Loader.cleanupTokens( rawTokens )
           return true
         end
       },{
         label = "run-cleanup->buildInstructions",
         func = function( tokens )
+          DBG.tokens = tokens
           Loader.buildInstructions(tokens)
           return true
         end
@@ -3658,6 +3723,8 @@ function Loader.run(src)
             },{
               label = "run-execute",
               func = function()
+                DBG.inst = instructions
+                LOG(utils.serializeOrdered(DBG))
                 Loader.execute(instructions, Plasma.scope)
                 return true
               end
