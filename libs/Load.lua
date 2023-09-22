@@ -733,7 +733,7 @@ function Loader._readTable( tokens, start )
       --{x = y, z = w} y,z
       local nextKey = nil
       if #infix == 1 and infix[1].type == "assignment-set" and #infix[1].value == 2 then
-        nextKey = Loader._val(infix[1].value[2].value) --non var
+        nextKey = {Loader._val(infix[1].value[2].value)} --non var
         infix = {infix[1].value[1]}
       end
       local value = infix

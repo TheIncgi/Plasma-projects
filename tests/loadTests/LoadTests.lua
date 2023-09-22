@@ -118,7 +118,7 @@ do
     
   local test = testUtils.codeTest(tester, "load-sandboxed-pass-in-var", env, libs, src)
   
-  common.printProxy{"10"}.exact()
+  common.printProxy{10}.exact()
 end
 
 -----------------
