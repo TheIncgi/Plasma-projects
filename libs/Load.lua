@@ -3588,7 +3588,7 @@ function Loader.execute( instructions, env, ... )
 end
 
 --===================================================================================
-
+--TODO block concurrent requests from coroutines
 function Net.require( path )
   --result handling
   Async.insertTasks(
@@ -3686,6 +3686,8 @@ function is_done()
   return false
 end
 
+run = Loader.run
+src = Net.sourceCode
 
 --===================================================================================
 --===================================================================================
