@@ -26,7 +26,8 @@ end
 function testUtils.codeTest(tester, name, env, libs, src, expectedResultCount)
   return tester:add(name, env, function()
     local scope = testUtils.newScope(libs.Scope)
-    local results = testUtils.run(src, scope, libs.Loader, libs.Async).varargs
+    local results = testUtils.run(src, scope, libs.Loader, libs.Async)
+    results = results and results.varargs or {}
     if expectedResultCount and #results ~= expectedResultCount then
       error("Expected "..expectedResultCount.." return value(s)")
     end

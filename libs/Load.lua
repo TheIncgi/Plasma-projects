@@ -697,44 +697,52 @@ function Loader._readTable( tokens, start )
       if token.value == "}" then
         return {tableInit, index + 1}
       end
-
-      if token.value == "[" then
-        local infix, nextIndex = Loader._collectExpression( tokens, index+1, false, token.line, true, true )
-        key = infix
-        if tokens[nextIndex].value ~= "]" then
-          error("']' expected in table near line "..token.line)
-        end
-        nextIndex = nextIndex + 1
-        if tokens[nextIndex].value ~= "=" then
-          error("'=' expected in table near line "..token.line)
-        end
-        index = nextIndex +1
-      elseif token.type == "var" and tokens[index+1] and tokens[index+1].value == "=" then
-        key = {{type="str", value = token.value}}
-        index = index + 2
-      elseif token.type == "assignment-set" then
-        for i = 1, #token.value -1 do
-          --insert as value
+      if not key then
+        if token.value == "[" then
+          local infix, nextIndex = Loader._collectExpression( tokens, index+1, false, token.line, true, true )
+          key = infix
+          if tokens[nextIndex].value ~= "]" then
+            error("']' expected in table near line "..token.line)
+          end
+          nextIndex = nextIndex + 1
+          if tokens[nextIndex].value ~= "=" then
+            error("'=' expected in table near line "..token.line)
+          end
+          index = nextIndex +1
+        elseif token.type == "var" and tokens[index+1] and tokens[index+1].value == "=" then
+          key = {{type="str", value = token.value}}
+          index = index + 2
+        elseif token.type == "assignment-set" then
+          for i = 1, #token.value -1 do
+            --insert as value
+            N = N + 1
+            local k = {Loader._val(N)}
+            local infix, nextIndex = Loader._collectExpression( tokens, index+1, false, token.line, true )
+            local v = infix
+            table.insert( tableInit, {line = line, infix = {key=k, value=v}} )
+          end
+          key = {{type="str", value = token.value[ #token.value ].value}}
+          index = index + 1
+        else
           N = N + 1
-          local k = {Loader._val(N)}
-          local infix, nextIndex = Loader._collectExpression( tokens, index+1, false, token.line, true )
-          local v = infix
-          table.insert( tableInit, {line = line, infix = {key=k, value=v}} )
+          key = {Loader._val(N)}
         end
-        key = {{type="str", value = token.value[ #token.value ].value}}
-        index = index + 1
-      else
-        N = N + 1
-        key = {Loader._val(N)}
       end
 
       local infix, nextToken = Loader._collectExpression(tokens, index, false, tokens[index].line, true, true)
+      --{x = y, z = w} y,z
+      local nextKey = nil
+      if #infix == 1 and infix[1].type == "assignment-set" and #infix[1].value == 2 then
+        nextKey = Loader._val(infix[1].value[2].value) --non var
+        infix = {infix[1].value[1]}
+      end
       local value = infix
       table.insert(tableInit, {line = line, infix = {key=key,value=value}})
+      key, value = nextKey, nil
 
       token = tokens[nextToken]
 
-      if token.value ~= "," and token.value ~= "}" then
+      if token.value ~= "," and token.value ~= "}" and not nextKey then
         error("Expected `,` or `} near line "..token.line.." for table starting at line "..line)
       end
       if token.value == "," then
@@ -1590,9 +1598,9 @@ function Loader.callFunc( func, args, callback )
             named = i
           end
           if func.args[named+1] == "..." then
-            func.env:setAsync(true, "...", Loader._varargs( table.unpack(fArgs, named+1) ))
+            func.env:setVarargs(Loader._varargs( table.unpack(fArgs, named+1) ))
           else
-            func.env:setAsync(true, "...", nil)
+            func.env:setVarargs(nil)
           end
           return true
         end
@@ -1717,7 +1725,7 @@ function Loader.indexTableWithEvents( tableValue, keyValue, callback, loop )
     })
   else
     --unsupported __index type
-    callback( NIL )
+    callback( Loader.constants["nil"] )
   end
 end
 
@@ -1870,7 +1878,7 @@ function Loader.eval( postfix, scope, line )
                   else
                     popAsync(stack, scope, line, true, 1, function(popped)
                       expectedMarker = popped
-                      popAsync(stack, scope, line, true, 1, function(popped)
+                      popAsync(stack, scope, line, false, 1, function(popped)
                         func = popped
                       end)
                     end)
@@ -2510,8 +2518,7 @@ function Loader.eval( postfix, scope, line )
           error("Unhandled token "..token.value)
         end
       elseif token.value == "..." then --not op
-        local a = Loader._tokenValue(token, scope) --{type="varargs", weak=true, value=, varargs=}
-        table.insert( a )
+        table.insert(stack, scope:getVarargs())
       elseif token.value == "{" and token.init then
         Async.insertTasks({
           label = "eval-table-init-results",
@@ -2585,6 +2592,7 @@ function Scope:new(name, line, parent, index, env)
     parent = parent,
     ifState = false, --false, no block has run yet, true, a block has run
     isLoop = false,
+    varargs = nil,
   }
   self.__index = self
   setmetatable(obj, self)
@@ -2617,6 +2625,25 @@ function Scope:set(isLocal, name, value)
   else
     self.parent:set(isLocal, name, value)
   end
+end
+
+--internal use
+function Scope:setVarargs( varargs )
+  if varargs == nil or varargs.varargs then
+    self.varargs = varargs
+  else
+    error("Expected varagrs or nil",2)
+  end
+end
+
+function Scope:getVarargs()
+  if self.varargs then
+    return self.varargs
+  end
+  if self.parent then
+    return self.parent:getVarargs()
+  end
+  return Loader.constants["nil"]
 end
 
 --name must be unwraped type
@@ -2685,9 +2712,14 @@ function Scope:getAsync(name)
           name = Loader._val(name)
           if Loader.indexTable( self.tableValue, name ) then
             Loader.indexTableWithEvents( self.tableValue, name, function( value )
-              Async.insertTasks({{label = "Scope:getAsync-callback return", func = function()
-                return {value}
-              end}})
+              Async.insertTasks(
+                {
+                  label = "Scope:getAsync-callback return",
+                  func = function()
+                    return {value}
+                  end
+                }
+              )
             end )
           end
         end
