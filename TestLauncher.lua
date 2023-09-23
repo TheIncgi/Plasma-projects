@@ -18,6 +18,7 @@ local tests = {
   "Metatable",
   "ShortCircuiting",
   "LoadTests",
+  "_GTests",
 }
 
 local totalPassed = 0

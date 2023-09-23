@@ -1659,7 +1659,9 @@ function Loader.getTableIndex( tableValue )
     error("expected table, got "..(tableValue.type or "nil"), 2 )
   end
   local index = Loader.tableIndexes[ tableValue.value ]
-  if not index then error("internal error, index missing for table") end
+  if not index then
+    error("internal error, index missing for table")
+  end
   return index
 end
 
@@ -1994,17 +1996,37 @@ function Loader.eval( postfix, scope, line )
           popAsync(stack, scope, line, false, 1, function(a)
           
             local selfVal = a
-            if a.type == "str" then
-              a = scope:getRootScope():get("string")
-            end
-            if a.type ~= "table" then
-              error("attempt to index "..a.type.." on line "..token.line)
-            end
+            Async.insertTasks({
+              label = "eval - : str",
+              func = function()
+                if a.type == "str" then
+                  Async.insertTasks({
+                    label = "eval - : str - get string", func = function()
+                      scope:getRootScope():getAsync("string")
+                      return true
+                    end
+                  },{
+                    label = "eval - : str get string result", func = function(result)
+                      a = result
+                      return true
+                    end
+                  })
+                end
+                return true
+              end
+            },{
+              label = "eval - :", func = function()
+                if a.type ~= "table" then
+                  error("attempt to index "..a.type.." on line "..token.line)
+                end
 
-            Loader.indexTableWithEvents( a, b, function(v)
-              table.insert(stack, v)
-              table.insert(stack, val(selfVal.value, "self"))
-            end)
+                Loader.indexTableWithEvents( a, b, function(v)
+                  table.insert(stack, v)
+                  table.insert(stack, val(selfVal.value, "self"))
+                end)
+                return true
+              end
+            })
           end)
 
         elseif token.value == "not" then
@@ -2562,15 +2584,32 @@ function Loader.eval( postfix, scope, line )
       end
     end, ipairs, postfix),
     {
-      label = "eval-expand-varargs",
+      label = "eval-expand-vars",
       func = function()
         --var -> value
         for i=1, #stack do
           if stack[i].type == "var" then
-            stack[i] = scope:get( stack[i].value )
+            Async.insertTasks(
+              {
+                label = "eval-expand-var-get", func = function()
+                  scope:getAsync( stack[i].value )
+                  return true
+                end
+              },{
+                label = "eval-expand-var-store", func = function( val )
+                  stack[i] = val
+                  return true
+                end
+              }
+            )
           end
         end
-        
+        return true
+      end
+    },
+    {
+      label = "eval-expand-varargs",
+      func = function()
         for i=1, #stack-1 do
           stack[i].varargs = nil
         end
@@ -2604,7 +2643,7 @@ end
 
 function Scope:new(name, line, parent, index, env)
   local obj = {
-    env = env or {},
+    --env = env or {},
     index = index,
     name = name.."-"..line,
     parent = parent,
@@ -2612,6 +2651,7 @@ function Scope:new(name, line, parent, index, env)
     isLoop = false,
     varargs = nil,
   }
+  obj.tableValue = Loader.newTable()
   self.__index = self
   setmetatable(obj, self)
   return obj
@@ -2634,14 +2674,16 @@ function Scope:getIndex()
   return self.index or self.parent and self.parent:getIndex()
 end
 
-function Scope:set(isLocal, name, value)
-  if self.tableValue then
-    error("Scope based on table value, must be async", 2)
-  end
-  if isLocal or self.env[name] or not self.parent then
-    self.env[name] = value
+function Scope:hasKey(name)
+  local index = Loader.getTableIndex( self.tableValue )
+  return not not index[name]
+end
+
+function Scope:setRaw(isLocal, name, value)
+  if isLocal or self:hasKey(name) or not self.parent then
+    Loader.assignToTable(self.tableValue, Loader._val(name), value)
   else
-    self.parent:set(isLocal, name, value)
+    self.parent:setRaw(isLocal, name, value)
   end
 end
 
@@ -2666,23 +2708,16 @@ end
 
 --name must be unwraped type
 function Scope:setAsync(isLocal, name, value)
+  if type(name) == "table" and name.type then error("name should not be wrapped",2) end
   return Async.insertTasks(
     {
       label = "Scope:setAsync",
       func = function()
-        if self.env then
-          if isLocal or self.env[name] or not self.parent then
-            self.env[name] = value
-          else
-            self.parent:setAsync(isLocal, name, value)
-          end
+        local nameValue = Loader._val(name)
+        if isLocal or Loader.indexTable( self.tableValue, nameValue ).type~="nil" or not self.parent then
+          Loader.assignToTableWithEvents( self.tableValue, nameValue, value)
         else
-          name = Loader._val(name)
-          if isLocal or Loader.indexTable( self.tableValue, name ).type~="nil" or not self.parent then
-            Loader.assignToTableWithEvents( self.tableValue, name, value)
-          else
-            self.parent:setAsync(isLocal, name, value)
-          end
+          self.parent:setAsync(isLocal, name, value)
         end
         return true
       end
@@ -2701,17 +2736,16 @@ function Scope:makeNativeFunc( name, func, unpacker, packer )
 end
 
 function Scope:setNativeFunc( name, func, unpacker, packer )
-  self:set(false, name, self:makeNativeFunc( name, func, unpacker, packer ))
+  self:setRaw(false, name, self:makeNativeFunc( name, func, unpacker, packer ))
 end
 
 --only usable with plain scopes, not with `fromTableValue` scopes due to metaevents and possible function calls
-function Scope:get(name)
-  if self.tableValue then error("Scope based on table value, must be async", 2) end
-  if self.env[name] then
-    return self.env[name]
-  end
-  if self.parent then
-    return self.parent:get(name)
+function Scope:getRaw(name)
+  local nameValue = Loader._val(name)
+  if Loader.indexTable( self.tableValue, nameValue ).type ~= "nil" then
+    return Loader.indexTable( self.tableValue, nameValue )
+  elseif self.parent then
+    return self.parent:getRaw(name)
   end
   return Loader.constants["nil"]
 end
@@ -2722,24 +2756,18 @@ function Scope:getAsync(name)
     {
       label = "Scope:getAsync",
       func = function()
-        if self.env then
-          if self.env[name] then
-            return {self.env[name]}
-          end
-        else
-          name = Loader._val(name)
-          if Loader.indexTable( self.tableValue, name ) then
-            Loader.indexTableWithEvents( self.tableValue, name, function( value )
-              Async.insertTasks(
-                {
-                  label = "Scope:getAsync-callback return",
-                  func = function()
-                    return {value}
-                  end
-                }
-              )
-            end )
-          end
+        local nameValue = Loader._val(name)
+        if Loader.indexTable( self.tableValue, nameValue ).type ~= "nil" then
+          Loader.indexTableWithEvents( self.tableValue, nameValue, function( value )
+            Async.insertTasks(
+              {
+                label = "Scope:getAsync-callback return",
+                func = function()
+                  return {value}
+                end
+              }
+            )
+          end )
         end
         return true
       end
@@ -2784,7 +2812,7 @@ function Scope:captureLocals(fenv)
       end
     end
   else
-    for k,v in pairs( self.tableValue ) do
+    for k,v in pairs( self.tableValue.value ) do
       if not fenv[k.value] then
         fenv[k.value] = v
       end
@@ -2804,17 +2832,18 @@ function Scope:addPlasmaGlobals()
 end
 
 function Scope:setPlasmaInputs()
-  self:set(false, "V1", V1) -- V1-V8 isn't in _G
-  self:set(false, "V2", V2)
-  self:set(false, "V3", V3)
-  self:set(false, "V4", V4)
-  self:set(false, "V5", V5)
-  self:set(false, "V6", V6)
-  self:set(false, "V7", V7)
-  self:set(false, "V8", V8)
+  self:setRaw(false, "V1", V1) -- V1-V8 isn't in _G
+  self:setRaw(false, "V2", V2)
+  self:setRaw(false, "V3", V3)
+  self:setRaw(false, "V4", V4)
+  self:setRaw(false, "V5", V5)
+  self:setRaw(false, "V6", V6)
+  self:setRaw(false, "V7", V7)
+  self:setRaw(false, "V8", V8)
 end
 
 function Scope:addGlobals()
+  self:setRaw(false, "_G", self:getTableValue())
   self:setNativeFunc( "next",     next )
   self:setNativeFunc( "print",    print )
   self:setNativeFunc( "tonumber", function( x )
@@ -2917,7 +2946,7 @@ function Scope:addGlobals()
       Loader.assignToTable( mathModule, Loader._val(name), Loader._val(func)) --pi, e, huge...
     end
   end
-  self:set(false, "math", mathModule)
+  self:setRaw(false, "math", mathModule)
   
   ---------------------------------------------------------
   -- string
@@ -2927,7 +2956,7 @@ function Scope:addGlobals()
     local nf = self:makeNativeFunc( name, func )
     Loader.assignToTable( strModule, Loader._val(name), nf )
   end
-  self:set(false, "string", strModule)
+  self:setRaw(false, "string", strModule)
   ---------------------------------------------------------
   -- table
   ---------------------------------------------------------
@@ -3004,7 +3033,7 @@ function Scope:addGlobals()
     return table.unpack(values)
   end, false, false))
   
-  self:set(false, "table", tblModule)
+  self:setRaw(false, "table", tblModule)
 
   ---------------------------------------------------------
   -- bit32
@@ -3013,7 +3042,7 @@ function Scope:addGlobals()
   for name, func in pairs(bit32) do
     Loader.assignToTable( bitModule, Loader._val(name), self:makeNativeFunc(name, func))
   end
-  self:set(false, "bit32", bitModule)
+  self:setRaw(false, "bit32", bitModule)
 
   ---------------------------------------------------------
   -- coroutine
@@ -3092,20 +3121,13 @@ function Scope:addGlobals()
     error("feature requires metatables to be implemented!") --TODO
   end, false, false))
 
-  self:set(false, "coroutine", coroutineModule)
+  self:setRaw(false, "coroutine", coroutineModule)
   -- self:setNativeFunc( "",  )
 end
 
 --proxy for scripts
 function Scope:getTableValue()
-  if self.tableValue then return self.tableValue end
-  local t = {}
-  local m = {
-    __index = function(t,k)
-      self:get( k.value )
-    end
-  }
-  return Loader._val(setmetatable(t, m))
+  return self.tableValue
 end
 
 
@@ -3384,7 +3406,7 @@ function Loader.execute( instructions, env, ... )
               for i=1, #targets do
                 local target = targets[i]
                 if target.place == "scope" then
-                  top:set(inst.isLocal, target.name, stack[i] or Loader.constants["nil"] )
+                  top:setAsync(inst.isLocal, target.name, stack[i] or Loader.constants["nil"] )
                 else
                   local nameVal = Loader._val(target.name)
                   Loader.assignToTableWithEvents( target.place, nameVal, stack[i] )
@@ -3568,7 +3590,7 @@ function Loader.execute( instructions, env, ... )
           end
           for i=1, #inst.vars.value do
             top.previousFor.varargs[i+1]  = genVals.varargs[i] 
-            top:set(true, inst.vars.value[i].value, genVals.varargs[i])
+            top:setRaw(true, inst.vars.value[i].value, genVals.varargs[i])
           end
         end)
         return --continue
