@@ -2723,7 +2723,10 @@ end
 
 --only usable with plain scopes, not with `fromTableValue` scopes due to metaevents and possible function calls
 function Scope:getRaw(name)
-  if self.parent then
+  local nameValue = Loader._val(name)
+  if Loader.indexTable( self.tableValue, nameValue ).type ~= "nil" then
+    return Loader.indexTable( self.tableValue, nameValue )
+  elseif self.parent then
     return self.parent:getRaw(name)
   end
   return Loader.constants["nil"]
