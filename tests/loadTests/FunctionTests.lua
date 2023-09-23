@@ -36,7 +36,7 @@ do
   local test = tester:add("scope test", env, function()
     local scope = testUtils.newScope(Scope)
     testUtils.run( src, scope, Loader, Async )
-    return scope:get"IN_FUNC".value, scope:get"OUT_FUNC".value
+    return scope:getRaw"IN_FUNC".value, scope:getRaw"OUT_FUNC".value
   end)
 
   --expect
