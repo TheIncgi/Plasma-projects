@@ -12,9 +12,32 @@ local tester = Tester:new()
 -- Tests
 -----------------------------------------------------------------
 
------------
--- pcall --
------------
+-------------------
+-- pcall - clean --
+-------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local function safe(x)
+      return x + 2
+    end
+
+    return pcall( safe, 10 )
+  ]=]
+
+  local test = testUtils.codeTest(tester, "pcall-clean", env, libs, src)
+
+  test:var_eq(2, 12)
+  test:var_eq(1, true)
+end
+
+-------------------
+-- pcall - error --
+-------------------
 do
   local env = Env:new()
   local common = testUtils.common(env)
@@ -29,7 +52,7 @@ do
     return pcall( unsafe )
   ]=]
 
-  local test = testUtils.codeTest(tester, "pcall", env, libs, src)
+  local test = testUtils.codeTest(tester, "pcall-err", env, libs, src)
 
   test:var_eq(1, false)
   test:expect(function()

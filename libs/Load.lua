@@ -2974,17 +2974,23 @@ function Scope:addGlobals()
   self:setNativeFunc( "pcall", function(sFunc, ...) --unpacked args
     if not sFunc then error("expected callable") end
     self.errorHandler = true
-    local fArgs = {...}
+    local fArgs = Loader._varargs(...)
+    local values
     Async.insertTasks({
       label = "pcall-execute",
       func = function()
-        Loader.execute( sFunc.instructions, sFunc.env, table.unpack(fArgs))
+        Loader.callFunc( sFunc, fArgs, function(result)
+          values = {
+            Loader.constants["true"],
+            table.unpack(result.varargs)
+          }
+        end)
         return true
       end,
       },{
         label = "pcall-results",
         func = function(...)
-          return {{...}}
+          return {values or {...}}
         end,
         errorHandler = true --Async.loop will look for this
       }
