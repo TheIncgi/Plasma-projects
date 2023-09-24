@@ -58,6 +58,18 @@ function testUtils.common(env)
   }
 end
 
+function testUtils.var_pattern(test, argN, pattern)
+  test:expect(function()
+    local value = test.actionResults[argN]
+    if type(value) ~= "string" then
+      return false
+    end
+    return not not value:match(pattern), 
+      ("Expected string matching `%s` got `%s`")
+      :format(pattern, value)
+  end)
+end
+
 function testUtils.readSource( path )
   local file = io.open(path:sub(#("TheIncgi/Plasma-projects/main/")+1)..".lua","r")
   local data = file:read("*all")

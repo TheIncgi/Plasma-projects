@@ -55,12 +55,7 @@ do
   local test = testUtils.codeTest(tester, "pcall-err", env, libs, src)
 
   test:var_eq(1, false)
-  test:expect(function()
-    local actual = test.actionResults[2]
-    local expected = "attempt to perform arithmetic"
-    local msg = ("Expected error containing `%s` got `%s`"):format(expected, actual)
-    return not not actual:find(expected,1,true), msg
-  end)
+  testUtils.var_pattern(test, 2, "attempt to perform arithmetic")
 end
 
 -------------------
@@ -142,6 +137,94 @@ do
 
   test:var_eq(1, false)
   test:var_eq(2, "handled-15")
+end
+
+------------------
+-- asset - true --
+------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    function getThing()
+      return 1, 2, 3
+    end
+    return assert( getThing() )
+  ]=]
+
+  local test = testUtils.codeTest(tester, "assert-true", env, libs, src)
+
+  test:var_eq(1, 1)
+  test:var_eq(2, 2)
+  test:var_eq(3, 3)
+end
+
+------------------
+-- asset - false --
+------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    function getThing()
+      return false, "didn't work"
+    end
+    return assert( getThing() )
+  ]=]
+
+  local test = testUtils.codeTest(tester, "assert-false", env, libs, src)
+
+  test:expectError("didn't work")
+end
+
+-----------
+-- error --
+-----------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    return pcall(error, "oops")
+  ]=]
+
+  local test = testUtils.codeTest(tester, "error", env, libs, src)
+
+  test:var_eq(1, false)
+  testUtils.var_pattern(test, 2, "oops$")
+end
+
+-------------------
+-- error - level --
+-------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    function foo()
+      return pcall(error, "oops", 2)
+    end
+    function bar()
+      return foo()
+    end
+    return bar()
+  ]=]
+
+  local test = testUtils.codeTest(tester, "error-level", env, libs, src)
+
+  test:var_eq(1, false)
+  testUtils.var_pattern(test, 2, "oops$")
 end
 
 return tester

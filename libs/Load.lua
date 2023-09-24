@@ -2686,11 +2686,13 @@ function Scope:new(name, line, parent, index, tableValue)
   local obj = {
     --env = env or {},
     index = index,
-    name = name.."-"..line,
+    name = name,
+    startingLine = line,
     parent = parent,
     ifState = false, --false, no block has run yet, true, a block has run
     isLoop = false,
     varargs = nil,
+    line = 1,
     tableValue = tableValue,
   }
   obj.tableValue = Loader.newTable()
@@ -2719,6 +2721,33 @@ end
 function Scope:hasKey(name)
   local index = Loader.getTableIndex( self.tableValue )
   return not not index[name]
+end
+
+function Scope:setLine( line )
+  self.line = line
+end
+
+function Scope:getStackTraceAsTable(trace, level)
+  trace = trace or Loader.newTable()
+  level = level or 1
+  local info = Loader.newTable()
+  Loader.assignToTable(info, Loader._val("name"), Loader._val(self.name))
+  Loader.assignToTable(info, Loader._val("line"), Loader._val(self.line))
+  Loader.assignToTable(trace, Loader._val(level), info)
+  if self.parent then
+    return self.parent(trace, level + 1)
+  end
+  return trace
+end
+
+function Scope:getStackTraceAsString(text)
+  text = text or {}
+  local info = self.name..":"..level
+  table.insert(text, info)
+  if self.parent then
+    return self.parent:getStackTraceAsString(text)
+  end
+  return table.concat(text, "\n")
 end
 
 function Scope:setRaw(isLocal, name, value)
@@ -3035,14 +3064,16 @@ function Scope:addGlobals()
     )
 
   end, false, false)
-  self:setNativeFunc( "assert", assert, function( v, msg, ... )
+  self:setNativeFunc( "assert", function( v, msg, ... )
     if v.type=="function" or v.value then
       return v, msg, ...
     end
     error( msg )
   end, false, false)
   self:setNativeFunc( "error", function(msg, level)
-    --TODO 
+    if level then
+      error"LEVEL NOT IMPLEMENTED"
+    end
     error(msg)
   end)
   ---------------------------------------------------------
@@ -3231,9 +3262,18 @@ function Scope:addGlobals()
   Loader.assignToTable( coroutineModule, Loader._val("wrap"), self:makeNativeFunc("wrap", function() --stuff to pass to resume
     error("feature requires metatables to be implemented!") --TODO
   end, false, false))
-
+  
   self:setRaw(false, "coroutine", coroutineModule)
   -- self:setNativeFunc( "",  )
+
+  ---------------------------------------------------------
+  -- debug
+  ---------------------------------------------------------
+  local debugModule = Loader.newTable()
+
+  Loader.assignToTable( debugModule, Loader._val("traceback"))
+
+  self:setRaw(false, "debug", debugModule)
 end
 
 --proxy for scripts
@@ -3490,7 +3530,10 @@ function Loader.execute( instructions, env, ... )
     Async.whileLoop("exec", function () return instructions[index] end, function ()
       local inst = instructions[index]
       local top = callStack[#callStack]
-      if inst.line then Async.setLine( inst.line ) end
+      if inst.line then 
+        Async.setLine( inst.line )
+        top:setLine( inst.line )
+      end
       -- print("  DEBUG: "..inst.line..": "..inst.op.."["..#callStack.."]")
       if inst.op == "assign" then
         -- local instruction = {
