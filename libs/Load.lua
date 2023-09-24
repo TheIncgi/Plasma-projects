@@ -2977,6 +2977,7 @@ function Scope:addGlobals()
     Loader.load(src, scope, blockName, line) --async return
   end, false, function( fVal ) return { Loader._varargs(fVal) } end)
   self:setNativeFunc( "pcall", function(sFunc, ...) --unpacked args
+    if not sFunc then error("expected callable") end
     self.errorHandler = true
     local fArgs = {...}
     Async.insertTasks({
