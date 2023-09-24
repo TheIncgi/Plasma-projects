@@ -47,6 +47,8 @@ function testUtils.common(env)
   local trigger = env:proxy("trigger", function() end)
   local write_var = env:proxy("write_var", function() end)
   local read_var = env:proxy("read_var", function() end)
+  
+  write_var.realDefault = true
 
   return {
     printProxy = printProxy,

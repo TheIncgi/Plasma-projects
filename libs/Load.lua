@@ -84,7 +84,7 @@ function Async.insertTasks( ... )
 end
 
 function Async.removeTask( func, threadID )
-  local tasks = threads[ threadID or  Async.activeThread ]
+  local tasks = Async.threads[ threadID or  Async.activeThread ]
   for i=1, #tasks do
     if tasks[i] == func then
       table.remove( tasks, i )
@@ -99,32 +99,48 @@ end
 --completes tasks up to `task`
 --returns value(s) from `task`
 function Async.sync( task )
+  return Async.loop( task )
   --print( "SYNC: "..tostring(task).." | "..task.label )
-	local args = {}
-	while #threads[Async.activeThread] > 0 do
-    local threadOnCall = Async.activeThread
-		local t = threads[Async.activeThread][1]
-    --print(" > ", t.label ,sourceLine(t.func), t.func)
-		local value =  t.func( table.unpack(args) ) 
-    args = {}
-		if value == false then
-			--
-		elseif type(value) == "table" then
-            Async.removeTask( t, threadOnCall )
-      if t == task then
-				return table.unpack( value )
-			end
-			args = value
-		elseif value == true then
-			Async.removeTask( t, threadOnCall )
-      if t == task then
-        return
-      end
-		else
-			error( "Invalid task result during sync ["..(t.label or "?").."]",2 )
-		end
-	end
-	error( "Exausted tasks during sync", 2 )
+	-- local args = {}
+	-- while #threads[Async.activeThread] > 0 do
+  --   local threadOnCall = Async.activeThread
+	-- 	local t = threads[Async.activeThread][1]
+  --   --print(" > ", t.label ,sourceLine(t.func), t.func)
+  --   local ok, value = pcall( t.func, table.unpack(args))
+  --   if not ok then
+  --     args = { Loader._val(value) }
+  --     local active = Async.activeThread
+  --     while #threads[active] > 0 do --skip until next task is errorHandler
+  --       local e = threads[Async.activeThread][1]
+  --       if et.errorHandler or e == task then
+  --         break
+  --       end
+  --       Async.removeTask( e )
+  --     end
+  --     if not e.errorHandler then
+  --       error(value)
+  --     end
+  --   else
+  --     args = {}
+  --     if value == false then
+  --       --
+  --     elseif type(value) == "table" then
+  --             Async.removeTask( t, threadOnCall )
+  --       if t == task then
+  --         return table.unpack( value )
+  --       end
+  --       args = value
+  --     elseif value == true then
+  --       Async.removeTask( t, threadOnCall )
+  --       if t == task then
+  --         return
+  --       end
+  --     else
+  --       error( "Invalid task result during sync ["..(t.label or "?").."]",2 )
+  --     end
+  --   end
+  --   error( "Exausted tasks during sync", 2 )
+  -- end
 end
 
 --async, return task
@@ -199,39 +215,66 @@ function Async.range( start, stop, inc )
 end
 
 local __args = {}
-function Async.loop()
-  stepsPerLoop = read_var"stepsperloop" or 1
-  
-  for steps = 1, stepsPerLoop do
-    if threads and Async.activeThread and threads[Async.activeThread] and #threads[Async.activeThread] > 0 then
-      local t = threads[Async.activeThread][1]
-      --print(" > ", t.label ,sourceLine(t.func), t.func)
-      local value =  t.func( table.unpack(__args) ) 
-      __args = {}
-      if value == false then
-        --
-      elseif type(value) == "table" then
-        Async.removeTask( t )
-        __args = value
-      elseif value == true then
-        Async.removeTask( t )
+function Async.loop( syncTask )
+  stepsPerLoop = syncTask and 1 or read_var"stepsperloop" or 1
+  repeat
+    for steps = 1, stepsPerLoop do
+      if threads and Async.activeThread and threads[Async.activeThread] and #threads[Async.activeThread] > 0 then
+        local theadOnCall = Async.activeThread
+        local t = threads[theadOnCall][1]
+        local ok, value = pcall( t.func, table.unpack(__args))
+        if not ok then
+          __args = { Loader._val(value) }
+          local e = t
+          while threads[theadOnCall] and #threads[theadOnCall] > 0 do --skip until next task is errorHandler
+            e = threads[theadOnCall][1]
+            if e.errorHandler then
+              break
+            end
+            Async.removeTask( e )
+          end
+          if not e.errorHandler or t == syncTask then
+            error(value)
+          end
+        else
+          __args = {}
+          if value == false then
+            --
+          elseif type(value) == "table" then
+            Async.removeTask( t, theadOnCall )
+            __args = value
+          elseif value == true then
+            Async.removeTask( t, theadOnCall )
+          else
+            error( "Invalid task result during sync",2 )
+          end
+        end
+        if t == syncTask then
+          return table.unpack(__args)
+        end
       else
-        error( "Invalid task result during sync",2 )
+        break
+      end
+    end
+    if threads and Async.activeThread and threads[Async.activeThread] then
+      write_var(#threads[Async.activeThread], "tasks")
+      if #threads[Async.activeThread] > 0 then
+        local task = threads[Async.activeThread][1]
+        write_var(task.label, "taskname")
+      else
       end
     else
-      break
+      write_var(0, "tasks")
     end
-  end
-  if threads and Async.activeThread and threads[Async.activeThread] then
-    write_var(#threads[Async.activeThread], "tasks")
-    if #threads[Async.activeThread] > 0 then
-      local task = threads[Async.activeThread][1]
-      write_var(task.label, "taskname")
-    else
+    if threads and Async.activeThread and threads[Async.activeThread] and #threads[Async.activeThread] == 0 and syncTask then
+      error("Exausted tasks during sync", 2)
     end
-  else
-    write_var(0, "tasks")
-  end
+  until not syncTask
+end
+
+function loopStep(t, syncTask)
+  --print(" > ", t.label ,sourceLine(t.func), t.func)
+  
 end
 
 function Async.newThread()
@@ -2933,7 +2976,25 @@ function Scope:addGlobals()
     end
     Loader.load(src, scope, blockName, line) --async return
   end, false, function( fVal ) return { Loader._varargs(fVal) } end)
+  self:setNativeFunc( "pcall", function(sFunc, ...) --unpacked args
+    self.errorHandler = true
+    local fArgs = {...}
+    Async.insertTasks({
+      label = "pcall-execute",
+      func = function()
+        Loader.execute( sFunc.instructions, sFunc.env, table.unpack(fArgs))
+        return true
+      end,
+      },{
+        label = "pcall-results",
+        func = function(...)
+          return {...}   
+        end,
+        errorHandler = true --Async.loop will look for this
+      }
+    )
 
+  end)
   ---------------------------------------------------------
   -- math
   ---------------------------------------------------------
