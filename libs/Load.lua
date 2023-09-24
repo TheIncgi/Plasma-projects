@@ -3035,6 +3035,16 @@ function Scope:addGlobals()
     )
 
   end, false, false)
+  self:setNativeFunc( "assert", assert, function( v, msg, ... )
+    if v.type=="function" or v.value then
+      return v, msg, ...
+    end
+    error( msg )
+  end, false, false)
+  self:setNativeFunc( "error", function(msg, level)
+    --TODO 
+    error(msg)
+  end)
   ---------------------------------------------------------
   -- math
   ---------------------------------------------------------
