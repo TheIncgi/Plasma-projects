@@ -24,6 +24,7 @@ do
   ]=]
   local env = Env:new()
   local libs = testUtils.libs()
+  local common = testUtils.common(env)
   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
 
   local printProxy = env:proxy("print", function() end)
@@ -46,6 +47,7 @@ do
   ]=]
   local env = Env:new()
   local libs = testUtils.libs()
+  local common = testUtils.common(env)
   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
 
   local test = testUtils.codeTest( tester, ", order", env, libs, src )
@@ -68,6 +70,7 @@ do
   ]=]
   local env = Env:new()
   local libs = testUtils.libs()
+  local common = testUtils.common(env)
   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
 
   local test = testUtils.codeTest( tester, "(), order", env, libs, src )
@@ -91,6 +94,7 @@ do
   ]=]
   local env = Env:new()
   local libs = testUtils.libs()
+  local common = testUtils.common(env)
   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
 
   local test = testUtils.codeTest( tester, ",() order", env, libs, src )
@@ -117,6 +121,7 @@ do
   ]=]
   local env = Env:new()
   local libs = testUtils.libs()
+  local common = testUtils.common(env)
   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
 
   local test = testUtils.codeTest( tester, ",(), order", env, libs, src )
