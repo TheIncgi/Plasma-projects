@@ -224,7 +224,7 @@ function Async.loop( syncTask )
         local t = threads[theadOnCall][1]
         local ok, value = pcall( t.func, table.unpack(__args))
         if not ok then
-          __args = { Loader._val(value) }
+          __args = { Loader._val(ok), Loader._val(value) }
           local e = t
           while threads[theadOnCall] and #threads[theadOnCall] > 0 do --skip until next task is errorHandler
             e = threads[theadOnCall][1]
@@ -270,11 +270,6 @@ function Async.loop( syncTask )
       error("Exausted tasks during sync", 2)
     end
   until not syncTask
-end
-
-function loopStep(t, syncTask)
-  --print(" > ", t.label ,sourceLine(t.func), t.func)
-  
 end
 
 function Async.newThread()
@@ -2989,13 +2984,13 @@ function Scope:addGlobals()
       },{
         label = "pcall-results",
         func = function(...)
-          return {...}   
+          return {{...}}
         end,
         errorHandler = true --Async.loop will look for this
       }
     )
 
-  end)
+  end, false, false)
   ---------------------------------------------------------
   -- math
   ---------------------------------------------------------

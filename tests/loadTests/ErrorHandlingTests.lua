@@ -32,7 +32,12 @@ do
   local test = testUtils.codeTest(tester, "pcall", env, libs, src)
 
   test:var_eq(1, false)
-  test:var_eq(2, "attempt to add nil with number")
+  test:expect(function()
+    local actual = test.actionResults[2]
+    local expected = "attempt to perform arithmetic"
+    local msg = ("Expected error containing `%s` got `%s`"):format(expected, actual)
+    return not not actual:find(expected,1,true), msg
+  end)
 end
 
 return tester
