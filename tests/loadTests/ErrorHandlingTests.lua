@@ -63,4 +63,85 @@ do
   end)
 end
 
+-------------------
+-- xpcall - clean --
+-------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local function safe(x)
+      return x + 2
+    end
+
+    local function handler(msg, env)
+      error"Should not call"
+    end
+
+    return xpcall( safe, handler, 10 )
+  ]=]
+
+  local test = testUtils.codeTest(tester, "xpcall-clean", env, libs, src)
+
+  test:var_eq(1, true)
+  test:var_eq(2, 12)
+end
+
+-------------------
+-- xpcall - error --
+-------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local function unsafe()
+      return x + 2
+    end
+
+    local function handler(msg, env)
+      return "handled"
+    end
+
+    return xpcall( unsafe, handler )
+  ]=]
+
+  local test = testUtils.codeTest(tester, "xpcall-err", env, libs, src)
+
+  test:var_eq(1, false)
+  test:var_eq(2, "handled")
+end
+
+-------------------
+-- xpcall - inspect --
+-------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local function unsafe( y )
+      return x + 2
+    end
+
+    local function handler(msg, env)
+      return "handled-"..env.y
+    end
+
+    return xpcall( unsafe, handler, 15 )
+  ]=]
+
+  local test = testUtils.codeTest(tester, "xpcall-inspect", env, libs, src)
+
+  test:var_eq(1, false)
+  test:var_eq(2, "handled-15")
+end
+
 return tester

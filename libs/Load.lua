@@ -229,6 +229,9 @@ function Async.loop( syncTask )
           while threads[theadOnCall] and #threads[theadOnCall] > 0 do --skip until next task is errorHandler
             e = threads[theadOnCall][1]
             if e.errorHandler then
+              if type(e.errorHandler) == "function" then
+                e.errorHandler( value )
+              end
               break
             end
             Async.removeTask( e )
@@ -2679,7 +2682,7 @@ function Loader.UNPACKER( fArgs )
 end
 
 
-function Scope:new(name, line, parent, index, env)
+function Scope:new(name, line, parent, index, tableValue)
   local obj = {
     --env = env or {},
     index = index,
@@ -2688,6 +2691,7 @@ function Scope:new(name, line, parent, index, env)
     ifState = false, --false, no block has run yet, true, a block has run
     isLoop = false,
     varargs = nil,
+    tableValue = tableValue,
   }
   obj.tableValue = Loader.newTable()
   self.__index = self
@@ -2841,19 +2845,11 @@ function Scope:getRootScope()
 end
 
 function Scope:captureLocals(fenv)
-  local fenv = fenv or {}
+  local fenv = fenv or Loader.newTable()
   if not self.parent then return fenv end --don't capture globals
-  if self.env then
-    for k,v in pairs( self.env ) do
-      if not fenv[k] then
-        fenv[k] = v
-      end
-    end
-  else
-    for k,v in pairs( self.tableValue.value ) do
-      if not fenv[k.value] then
-        fenv[k.value] = v
-      end
+  for k,v in pairs( self.tableValue.value ) do
+    if Loader.indexTable(fenv, k).type == "nil" then
+      Loader.assignToTable(fenv, k, v)
     end
   end
   return self.parent:captureLocals( fenv )
@@ -2972,7 +2968,7 @@ function Scope:addGlobals()
     Loader.load(src, scope, blockName, line) --async return
   end, false, function( fVal ) return { Loader._varargs(fVal) } end)
   self:setNativeFunc( "pcall", function(sFunc, ...) --unpacked args
-    if not sFunc then error("expected callable") end
+    if sFunc.type=="nil" then error("expected callable") end
     self.errorHandler = true
     local fArgs = Loader._varargs(...)
     local values
@@ -2993,6 +2989,48 @@ function Scope:addGlobals()
           return {values or {...}}
         end,
         errorHandler = true --Async.loop will look for this
+      }
+    )
+  end, false, false)
+  self:setNativeFunc( "xpcall", function(sFunc, handler, ...) --unpacked args
+    if sFunc.type=="nil" then error("expected callable") end
+    if handler.type=="nil" then error("expected callable") end
+    self.errorHandler = true
+    local fArgs = Loader._varargs(...)
+    local values
+    Async.insertTasks({
+      label = "pcall-execute",
+      func = function()
+        Loader.callFunc( sFunc, fArgs, function(result)
+          values = {
+            Loader.constants["true"],
+            table.unpack(result.varargs)
+          }
+        end)
+        return true
+      end,
+      },{
+        label = "pcall-results",
+        func = function(...)
+          return {values or {...}}
+        end,
+        errorHandler = function(msg) --Async.loop will look for this
+          Async.insertTasks(
+            {
+              label = "xpcall-handle error",
+              func = function()
+                fArgs = Loader._varargs(msg, sFunc.env:captureLocals())
+                Loader.callFunc(handler, fArgs, function(result)
+                  values = {
+                    Loader.constants["false"],
+                    table.unpack(result.varargs)
+                  }
+                end)
+                return true
+              end
+            }
+          )
+        end
       }
     )
 
