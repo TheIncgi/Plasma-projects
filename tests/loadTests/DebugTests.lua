@@ -39,9 +39,9 @@ do
 	line 7 in UNIT_TEST]])
 end
 
------------------------
+-----------------------------
 -- debug - traceback table --
------------------------
+-----------------------------
 do
   local env = Env:new()
   local common = testUtils.common(env)
@@ -62,6 +62,40 @@ do
   local test = testUtils.codeTest(tester, "debug-traceback-table", env, libs, src)
   
   test:var_eq(1, "function foo")
+  test:var_eq(2, 2)
+  test:var_eq(3, "function bar")
+  test:var_eq(4, 5)
+  test:var_eq(5, "UNIT_TEST")
+  test:var_eq(6, 7)
+end
+
+---------------------
+-- debug - sethook --
+---------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    function foo()                            -- 1
+      return debug.tracebackTable()           -- 2
+    end                                       -- 3
+    function bar()                            -- 4
+      return foo()                            -- 5
+    end                                       -- 6
+                                              -- 7
+    local log = {}                            -- 8
+    debug.sethook(function(event, line)       -- 9
+      table.insert(log, "%s:%d":(event,line)) --10
+    end, "clr")                               --11
+    return table.unpack(log)                  --12
+  ]=]
+
+  local test = testUtils.codeTest(tester, "debug-sethook", env, libs, src)
+  
+  test:var_eq(1, "line:12")
   test:var_eq(2, 2)
   test:var_eq(3, "function bar")
   test:var_eq(4, 5)

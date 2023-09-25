@@ -319,8 +319,22 @@ function Async.setScope( scope )
   Async.threads[ Async.activeThread ].scope = scope
 end
 
+--debug hook
+function Async.setHook( func, mode, count )
+  Async.threads[ Async.activeThread ].hook = {
+    func = func,
+    mode = mode,
+    count = count,
+    counter = 0,
+  }
+end
+
 function Async.getLine()
   return Async.threads[ Async.activeThread ].line
+end
+
+function Async.getHook()
+  return Async.threads[ Async.activeThread ] and Async.threads[ Async.activeThread ].hook
 end
 
 --static method of getting active scope
@@ -1619,6 +1633,14 @@ end
 
 function Loader.callFunc( func, args, callback )
   local fArgs = args.varargs or {args}
+  local hook = Async.getHook()
+  if hook and not hook.inHook then
+    hook.inHook = true
+    if hook.mode:find"c" then
+      Loader.callFunc( hook.func, Loader._varargs("call"), function() end )
+    end
+    hook.inHook = false
+  end
   if func.value then
     local result
     if func.unpacker then
@@ -1690,6 +1712,13 @@ function Loader.callFunc( func, args, callback )
       }
     )
     
+  end
+  if hook and not hook.inHook then
+    hook.inHook = true
+    if hook.mode:find"r" then
+      Loader.callFunc( hook.func, Loader._varargs("return"), function() end )
+    end
+    hook.inHook = false
   end
 end
 
@@ -3574,6 +3603,21 @@ function Loader.execute( instructions, env, ... )
         Async.setLine( inst.line )
         Async.setScope(top)
         top:setLine( inst.line )
+
+        local hook = Async.getHook()
+        if hook and not hook.inHook then
+          hook.inHook = true
+          if hook.count then
+            hook.counter = hook.counter + 1
+            if hook.counter % hook.count == 1 then
+              Loader.callFunc( hook.func, Loader._varargs("count", inst.line, hook.counter), function() end )
+            end
+          end
+          if hook.mode:find"l" then
+            Loader.callFunc( hook.func, Loader._varargs("line", inst.line), function() end )
+          end
+          hook.inHook = false
+        end
       end
       -- print("  DEBUG: "..inst.line..": "..inst.op.."["..#callStack.."]")
       if inst.op == "assign" then
