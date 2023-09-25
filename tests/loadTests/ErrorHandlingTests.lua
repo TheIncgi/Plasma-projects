@@ -227,6 +227,4 @@ do
   testUtils.var_pattern(test, 2, "oops$")
 end
 
-
-
 return tester
