@@ -2973,7 +2973,11 @@ function Scope:addGlobals()
     return tonumber( x )
   end )
   self:setNativeFunc( "error", function( msg, lvl )
-    error( "Error on line line "..Async.getLine()..": "..tostring(msg.value), (lvl and lvl.value + 1) or 2)
+    local stacktrace = Async.getScope():getStackTrace()
+    if lvl and lvl.value then
+      stacktrace = {table.unpack(stacktrace, lvl.value)}
+    end
+    error( "Error occured at "..stacktrace[1].name..":"..stacktrace[1].line..": "..tostring(msg.value))
   end, false, false)
   --tostring(table.unpack{nil}) is an error
   --tostring( nil ) is not...
@@ -3130,12 +3134,6 @@ function Scope:addGlobals()
     end
     error( msg )
   end, false, false)
-  self:setNativeFunc( "error", function(msg, level)
-    if level then
-      error"LEVEL NOT IMPLEMENTED"
-    end
-    error(msg)
-  end)
   ---------------------------------------------------------
   -- math
   ---------------------------------------------------------
