@@ -2744,7 +2744,7 @@ function Scope:getStackTrace(tbl, child)
   tbl = tbl or {}
   if self.trace then
     table.insert(tbl, {
-      name = self.trace.name,
+      name = self.trace.name:gsub("^fenv:","function"),
       line = child and self.line or Async.getLine()
     })
     if self.trace.from then
@@ -2758,17 +2758,18 @@ function Scope:getStackTrace(tbl, child)
   end
 end
 
-function Scope:getStackTraceAsTable(trace, level)
-  trace = trace or Loader.newTable()
-  level = level or 1
-  local info = Loader.newTable()
-  Loader.assignToTable(info, Loader._val("name"), Loader._val(self.name))
-  Loader.assignToTable(info, Loader._val("line"), Loader._val(self.line))
-  Loader.assignToTable(trace, Loader._val(level), info)
-  if self.parent then
-    return self.parent(trace, level + 1)
+function Scope:getStackTraceAsTable()
+  local trace = self:getStackTrace()
+  local out = Loader.newTable()
+
+  for lvl, point in ipairs(trace) do
+    local info = Loader.newTable()
+    Loader.assignToTable(info, Loader._val("name"), Loader._val(point.name))
+    Loader.assignToTable(info, Loader._val("line"), Loader._val(point.line))
+    Loader.assignToTable(out, Loader._val(lvl), info)
   end
-  return trace
+  
+  return out
 end
 
 function Scope:getStackTraceAsString(text)
@@ -3307,7 +3308,7 @@ function Scope:addGlobals()
   end, false, nil))
 
   Loader.assignToTable( debugModule, Loader._val("tracebackTable"), self:makeNativeFunc("tracebackTable", function()
-    return self:getStackTraceAsTable()
+    return Async.getScope():getStackTraceAsTable()
   end, false, false))
 
   self:setRaw(false, "debug", debugModule)
