@@ -2741,13 +2741,13 @@ function Scope:getStackTraceAsTable(trace, level)
 end
 
 function Scope:getStackTraceAsString(text)
-  text = text or {}
-  local info = self.name..":"..level
+  text = text or {"stack traceback:"}
+  local info = self.name..":"..self.line
   table.insert(text, info)
   if self.parent then
     return self.parent:getStackTraceAsString(text)
   end
-  return table.concat(text, "\n")
+  return table.concat(text, "\n\t")
 end
 
 function Scope:setRaw(isLocal, name, value)
@@ -3262,7 +3262,7 @@ function Scope:addGlobals()
   Loader.assignToTable( coroutineModule, Loader._val("wrap"), self:makeNativeFunc("wrap", function() --stuff to pass to resume
     error("feature requires metatables to be implemented!") --TODO
   end, false, false))
-  
+
   self:setRaw(false, "coroutine", coroutineModule)
   -- self:setNativeFunc( "",  )
 
@@ -3271,7 +3271,13 @@ function Scope:addGlobals()
   ---------------------------------------------------------
   local debugModule = Loader.newTable()
 
-  Loader.assignToTable( debugModule, Loader._val("traceback"))
+  Loader.assignToTable( debugModule, Loader._val("traceback"), self:makeNativeFunc("traceback", function()
+    return self:getStackTraceAsString()
+  end, false, nil))
+
+  Loader.assignToTable( debugModule, Loader._val("tracebackTable"), self:makeNativeFunc("tracebackTable", function()
+    return self:getStackTraceAsTable()
+  end, false, false))
 
   self:setRaw(false, "debug", debugModule)
 end
