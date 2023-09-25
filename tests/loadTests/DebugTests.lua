@@ -33,7 +33,10 @@ do
 
   local test = testUtils.codeTest(tester, "debug-traceback", env, libs, src)
 
-  test:var_eq(1, false)
+  test:var_eq(1, [[stack traceback:
+	line 2 in fenv: foo
+	line 5 in fenv: bar
+	line 7 in UNIT_TEST]])
 end
 
 

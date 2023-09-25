@@ -277,7 +277,9 @@ end
 
 function Async.newThread()
   Async._threadID = Async._threadID + 1
-  Async.threads[ Async._threadID ] = {}
+  Async.threads[ Async._threadID ] = {
+    stacktrace = {}
+  }
   return Async._threadID
 end
 
@@ -312,8 +314,18 @@ function Async.setLine( line )
   Async.threads[ Async.activeThread ].line = line
 end
 
+--static method of setting active scope
+function Async.setScope( scope )
+  Async.threads[ Async.activeThread ].scope = scope
+end
+
 function Async.getLine()
   return Async.threads[ Async.activeThread ].line
+end
+
+--static method of getting active scope
+function Async.getScope( scope )
+  return Async.threads[ Async.activeThread ] and Async.threads[ Async.activeThread ].scope
 end
 
 local insertTasks = Async.insertTasks
@@ -2727,6 +2739,25 @@ function Scope:setLine( line )
   self.line = line
 end
 
+--native table
+function Scope:getStackTrace(tbl, child)
+  tbl = tbl or {}
+  if self.trace then
+    table.insert(tbl, {
+      name = self.trace.name,
+      line = child and self.line or Async.getLine()
+    })
+    if self.trace.from then
+      return self.trace.from:getStackTrace(tbl, true)
+    end
+    return tbl
+  elseif self.parent then
+    return self.parent:getStackTrace(tbl, child)
+  else
+    return tbl
+  end
+end
+
 function Scope:getStackTraceAsTable(trace, level)
   trace = trace or Loader.newTable()
   level = level or 1
@@ -2742,10 +2773,9 @@ end
 
 function Scope:getStackTraceAsString(text)
   text = text or {"stack traceback:"}
-  local info = self.name..":"..self.line
-  table.insert(text, info)
-  if self.parent then
-    return self.parent:getStackTraceAsString(text)
+  local trace = self:getStackTrace()
+  for lvl, point in ipairs(trace) do
+    table.insert(text, ("line %d in %s"):format(point.line, point.name))
   end
   return table.concat(text, "\n\t")
 end
@@ -3272,7 +3302,8 @@ function Scope:addGlobals()
   local debugModule = Loader.newTable()
 
   Loader.assignToTable( debugModule, Loader._val("traceback"), self:makeNativeFunc("traceback", function()
-    return self:getStackTraceAsString()
+    --self in this context would be incorrect because it would refer this functions env, which will contain no upvalues from any scope or stack trace info
+    return Async.getScope():getStackTraceAsString()
   end, false, nil))
 
   Loader.assignToTable( debugModule, Loader._val("tracebackTable"), self:makeNativeFunc("tracebackTable", function()
@@ -3516,6 +3547,8 @@ function Loader.execute( instructions, env, ... )
   else
     callStack[1] = env
   end
+
+  local callerScope = Async.getScope()
   -- callStack[1].env = env or callStack[1].env
   local prgmArgs = {
     type="varargs",
@@ -3523,7 +3556,7 @@ function Loader.execute( instructions, env, ... )
     value = ...,
     varargs = {...}
   }
-  
+
   local index = 1
   return Async.insertTasks(
     {
@@ -3538,6 +3571,7 @@ function Loader.execute( instructions, env, ... )
       local top = callStack[#callStack]
       if inst.line then 
         Async.setLine( inst.line )
+        Async.setScope(top)
         top:setLine( inst.line )
       end
       -- print("  DEBUG: "..inst.line..": "..inst.op.."["..#callStack.."]")
@@ -3774,6 +3808,12 @@ function Loader.execute( instructions, env, ... )
         
       elseif inst.op == "createScope" then
         Loader._appendCallEnv( callStack, "block start", inst.line, inst.index )
+        if #callStack == 2 then
+          callStack[2].trace = {
+            name = callStack[1].name,
+            from = callerScope
+          }
+        end
       elseif inst.op == "deleteScope" then
         table.remove(callStack)
       elseif inst.op == "do" then
