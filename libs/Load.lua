@@ -3600,19 +3600,19 @@ function Loader._getTableAssignmentTargets(vars, top)
 end
 
 function Loader.onHookReturn(line, callResults)
-  local hook = Async.getHook()
   -- local inHook = hook and hook.inHook --capture now
   Async.insertTasks({
     label = "callFunc - hook return",
     func = function(...)
+      local hook = Async.getHook()
       local bypass = {...}
-      if hook and hook.inHook then --FIXME
+      if hook and not hook.inHook then
         if hook.mode:find"r" then
           hook.inHook = true
           Async.insertTasks({
             label = "onHook return call",
-            func = function(...)
-              Loader.callFunc( hook.func, Loader._varargs(Loader._val("return"), Loader._val(Async.getScope().line), callResults and table.unpack(callResults.varargs)), function()
+            func = function()
+              Loader.callFunc( hook.func, Loader._varargs(Loader._val("return"), Loader._val(line), callResults and table.unpack(callResults.varargs)), function()
                 hook.inHook = false
               end )
               return true
@@ -3624,7 +3624,7 @@ function Loader.onHookReturn(line, callResults)
           })
         end
       end
-      return {...}
+      return bypass
     end
   })
 end
@@ -3673,7 +3673,9 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
             hook.counter = hook.counter + 1
             if hook.counter % hook.count == 1 then
               Loader.callFunc( hook.func, Loader._varargs(Loader._val("count"), Loader._val(inst.line), Loader._val(hook.counter)), function()
-                hook.inHook = false
+                if not hook.mode:find"l" then
+                  hook.inHook = false
+                end
               end )
             end
           end
@@ -3941,7 +3943,7 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
       label = "execute - return hook",
       func = function(...)
         if not returnHookHandled then
-          Loader.onHookReturn( callStack[#callStack].line, Loader._varargs() )
+          Loader.onHookReturn( callStack[#callStack].line, Loader._varargs() )     
         end
         return {...}
       end
