@@ -224,7 +224,7 @@ do
   local test = testUtils.codeTest(tester, "error-level", env, libs, src)
 
   test:var_eq(1, false)
-  testUtils.var_pattern(test, 2, "oops$")
+  testUtils.var_pattern(test, 2, "Error occured at function bar:5: oops$")
 end
 
 return tester

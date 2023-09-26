@@ -13,6 +13,31 @@ local tester = Tester:new()
 -----------------------------------------------------------------
 
 ------------------------
+-- table insert empty --
+------------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = {}
+    table.insert(t,"first")
+    return t[1]
+  ]=]
+
+  local test = tester:add("insert empty", env, function()
+    local scope = testUtils.newScope(Scope)
+    local results = testUtils.run(src, scope, Loader, Async).varargs
+    if not results[1] then error"Expected return value" end
+    return results[1].value
+  end)
+
+  test:var_eq(1, "first")
+end
+
+------------------------
 -- table insert first --
 ------------------------
 do

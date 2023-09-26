@@ -311,6 +311,8 @@ end
 
 --debug info
 function Async.setLine( line )
+  local hook = Async.getHook()
+  if hook and hook.inHook then return end
   Async.threads[ Async.activeThread ].line = line
 end
 
@@ -320,7 +322,10 @@ function Async.setScope( scope )
 end
 
 --debug hook
-function Async.setHook( func, mode, count )
+function Async.setHook( func, mode, ... )
+  if not func then
+    Async.threads[ Async.activeThread ].hook = nil
+  end
   Async.threads[ Async.activeThread ].hook = {
     func = func,
     mode = mode,
@@ -379,7 +384,7 @@ Loader.keywords = {
 local SINGLE_QUOTE = string.char(39)
 local DOUBLE_QUOTE = string.char(34)
 Loader._patterns = {
-	str = { "^'[^'\n]+'$", '^"[^"\n]+"$' },
+	str = { "^'[^'\n]*'$", '^"[^"\n]*"$' },
 	num = { 
 		int="^[0-9]+$", 
 		float="^[0-9]*%.[0-9]*$",
@@ -1633,93 +1638,105 @@ end
 
 function Loader.callFunc( func, args, callback )
   local fArgs = args.varargs or {args}
-  local hook = Async.getHook()
-  if hook and not hook.inHook then
-    hook.inHook = true
-    if hook.mode:find"c" then
-      Loader.callFunc( hook.func, Loader._varargs("call"), function() end )
-    end
-    hook.inHook = false
-  end
-  if func.value then
-    local result
-    if func.unpacker then
-      fArgs = func.unpacker( fArgs )
-    end
-    
-    Async.insertTasks(
-      {
-        label = "Loader.callFunc - native",
-        func = function()
-          local results
-          if #fArgs > 0 then
-            results = {func.value( table.unpack(fArgs) )}
-          else
-            results = {func.value()}
+  local hookEnabled = not not Async.getHook() -- to ignore return from sethook
+  local callResults --to pass to return hook
+  Async.insertTasks(
+    {
+      label = "callFunc - hook call",
+      func = function(...)
+        local hook = Async.getHook()
+        if hook and not hook.inHook and hook.func ~= func then
+          if hook.mode:find"c" then
+            hook.inHook = true
+            Loader.callFunc( hook.func, Loader._varargs(Loader._val("call"), Loader._val(func.line or -1), table.unpack(args.varargs)), function()
+              hook.inHook = false
+            end )
+          end
+        end
+        return {...}
+      end
+    },{
+      label = "callFunc - call",
+      func = function()
+        if func.value then
+          local result
+          if func.unpacker then
+            fArgs = func.unpacker( fArgs )
           end
           
-          return {results} --ok if async and returns nothing, inserted task in queue will
+          Async.insertTasks(
+            {
+              label = "Loader.callFunc - native",
+              func = function()
+                local results
+                if #fArgs > 0 then
+                  results = {func.value( table.unpack(fArgs) )}
+                else
+                  results = {func.value()}
+                end
+                
+                return {results} --ok if async and returns nothing, inserted task in queue will
+              end
+            },{
+              label = "Loader.callFunc - native - packer",
+              func = function( results )
+                if func.packer then
+                  results = func.packer( results )
+                end
+                return {results}
+              end
+            },{
+              label = "Loader.callFunc - native - result",
+              func = function( results )
+                local result = Loader._varargs(table.unpack(results or {}))
+                callResults = result
+                callback( result )
+                return true
+              end
+            }
+          )
+          
+        else
+          
+          Async.insertTasks(
+            {
+              label = "callFunc-setArgs",
+              func = function()
+                local named = 0
+                for i=1,#func.args do --TODO feature trailing named args? (a, b, ..., c)
+                  if func.args[i] == "..." then break end
+                  func.env:setAsync(true,func.args[i], fArgs[i] or Loader.constants["nil"])
+                  named = i
+                end
+                if func.args[named+1] == "..." then
+                  func.env:setVarargs(Loader._varargs( table.unpack(fArgs, named+1) ))
+                else
+                  func.env:setVarargs(nil)
+                end
+                return true
+              end
+            },{
+              label = "callFunc-execute",
+              func = function()
+                local nargs = #func.args - (func.args[#func.args]=="..." and 1 or 0)
+                Loader.execute(func.instructions, func.env, nargs, table.unpack(fArgs))
+                return true
+              end
+            },{
+              label = "callFunc-callback-return",
+              func = function( result )
+                callback( result )
+                callResults = result
+                return true
+              end
+            }
+          )
+          
         end
-      },{
-        label = "Loader.callFunc - native - packer",
-        func = function( results )
-          if func.packer then
-            results = func.packer( results )
-          end
-          return {results}
-        end
-      },{
-        label = "Loader.callFunc - native - result",
-        func = function( results )
-          local result = Loader._varargs(table.unpack(results or {}))
-          callback( result )
-          return true
-        end
-      }
-    )
-    
-  else
-    
-    Async.insertTasks(
-      {
-        label = "callFunc-setArgs",
-        func = function()
-          local named = 0
-          for i=1,#func.args do --TODO feature trailing named args? (a, b, ..., c)
-            if func.args[i] == "..." then break end
-            func.env:setAsync(true,func.args[i], fArgs[i] or Loader.constants["nil"])
-            named = i
-          end
-          if func.args[named+1] == "..." then
-            func.env:setVarargs(Loader._varargs( table.unpack(fArgs, named+1) ))
-          else
-            func.env:setVarargs(nil)
-          end
-          return true
-        end
-      },{
-        label = "callFunc-execute",
-        func = function()
-          Loader.execute(func.instructions, func.env, table.unpack(fArgs))
-          return true
-        end
-      },{
-        label = "callFunc-callback-return",
-        func = function( result )
-          callback( result )
-          return true
-        end
-      }
-    )
-    
-  end
-  if hook and not hook.inHook then
-    hook.inHook = true
-    if hook.mode:find"r" then
-      Loader.callFunc( hook.func, Loader._varargs("return"), function() end )
-    end
-    hook.inHook = false
-  end
+        return true
+      end
+    }
+  )
 end
 
 function Loader.newTable()
@@ -1733,7 +1750,11 @@ end
 
 function Loader.assignToTable( tableValue, keyValue, valueValue )
   tableValue.value[keyValue] = valueValue
-  Loader.tableIndexes[tableValue.value][keyValue.value] = keyValue
+  if valueValue == nil or valueValue.type == "nil" then
+    Loader.tableIndexes[tableValue.value][keyValue.value] = nil
+  else
+    Loader.tableIndexes[tableValue.value][keyValue.value] = keyValue
+  end
 end
 
 function Loader.getTableIndex( tableValue )
@@ -1877,10 +1898,12 @@ function Loader._initalizeTable( tableToken, scope, line )
   
   local key
   return Async.insertTasks(Async.forEach("_initalizeTable", function(i, entry)
+    local key
     Async.insertTasks({
       label = "_initalizeTable-value-result",
       func = function(val)
-        newTable[key] = val[1]
+        Loader.assignToTable(var, key[1], val[1])
+        -- newTable[key] = val[1]
 
         return true
       end
@@ -1890,8 +1913,9 @@ function Loader._initalizeTable( tableToken, scope, line )
     Async.insertTasks({
       label = "_initalizeTable-key-result",
       func = function(tKey)
-        key = tKey[1]
-        indexer[key.value] = key
+        key = tKey
+        -- key = tKey[1]
+        -- indexer[key.value] = key
         return true
       end
     })
@@ -1910,7 +1934,10 @@ function Loader.eval( postfix, scope, line )
   local skip = 0
   Async.insertTasks(
     Async.forEach("eval-postfix", function(index, token)
-      if token.line then Async.setLine( token.line ) end
+      if token.line then
+        Async.setLine( token.line )
+        scope:setLine(line)
+      end
       if index < skip then
         return --continue
       end
@@ -2733,7 +2760,7 @@ function Scope:new(name, line, parent, index, tableValue)
     ifState = false, --false, no block has run yet, true, a block has run
     isLoop = false,
     varargs = nil,
-    line = 1,
+    line = line,
     tableValue = tableValue,
   }
   obj.tableValue = Loader.newTable()
@@ -2765,6 +2792,8 @@ function Scope:hasKey(name)
 end
 
 function Scope:setLine( line )
+  local hook = Async.getHook()
+  if hook and hook.inHook then return end
   self.line = line
 end
 
@@ -3193,7 +3222,7 @@ function Scope:addGlobals()
     j = j and j.value or #indexer
     if not indexer then error("internal error, missing table index durring table.concat opperation") end
     for I = i, math.min(j,#indexer) do
-      unpacked[I-i+1] = tbl.value[ indexer[I] ].value
+      unpacked[I-i+1] = tostring(tbl.value[ indexer[I] ].value)
     end
     return Loader._val( table.concat(unpacked, joiner and joiner.value) )
   end, false, false ))
@@ -3336,6 +3365,10 @@ function Scope:addGlobals()
 
   Loader.assignToTable( debugModule, Loader._val("tracebackTable"), self:makeNativeFunc("tracebackTable", function()
     return Async.getScope():getStackTraceAsTable()
+  end, false, false))
+
+  Loader.assignToTable( debugModule, Loader._val("sethook"), self:makeNativeFunc("sethook", function(callback, mode, count)
+    Async.setHook( callback, mode and mode.value or "l", count and count.value )
   end, false, false))
 
   self:setRaw(false, "debug", debugModule)
@@ -3566,7 +3599,37 @@ function Loader._getTableAssignmentTargets(vars, top)
   
 end
 
-function Loader.execute( instructions, env, ... )
+function Loader.onHookReturn(line, callResults)
+  local hook = Async.getHook()
+  -- local inHook = hook and hook.inHook --capture now
+  Async.insertTasks({
+    label = "callFunc - hook return",
+    func = function(...)
+      local bypass = {...}
+      if hook and hook.inHook then --FIXME
+        if hook.mode:find"r" then
+          hook.inHook = true
+          Async.insertTasks({
+            label = "onHook return call",
+            func = function(...)
+              Loader.callFunc( hook.func, Loader._varargs(Loader._val("return"), Loader._val(Async.getScope().line), callResults and table.unpack(callResults.varargs)), function()
+                hook.inHook = false
+              end )
+              return true
+            end
+          },{
+            label = "onHook return bypass", func = function()
+              return bypass
+            end
+          })
+        end
+      end
+      return {...}
+    end
+  })
+end
+
+function Loader.execute( instructions, env, nNamedArgs, ... )
   local callStack = {
   }
   if not env then
@@ -3578,14 +3641,13 @@ function Loader.execute( instructions, env, ... )
 
   local callerScope = Async.getScope()
   -- callStack[1].env = env or callStack[1].env
-  local prgmArgs = {
-    type="varargs",
-    weak = true, -- ..., 10 | 10 is not appended, first value from ... used
-    value = ...,
-    varargs = {...}
-  }
+  local vargs = {}
+  local prgmArgs = Loader._varargs( select((nNamedArgs or 0) + 1, ...) )
+  prgmArgs.weak = true -- ..., 10 | 10 is not appended, first value from ... used
 
   local index = 1
+  local lineChecked = 0
+  local returnHookHandled = false
   return Async.insertTasks(
     {
       label = "Loader.execute - setup",
@@ -3597,9 +3659,11 @@ function Loader.execute( instructions, env, ... )
     Async.whileLoop("exec", function () return instructions[index] end, function ()
       local inst = instructions[index]
       local top = callStack[#callStack]
-      if inst.line then 
+      Async.setScope(top)
+      
+      if inst.line and lineChecked ~= inst.line then 
+        lineChecked = inst.line
         Async.setLine( inst.line )
-        Async.setScope(top)
         top:setLine( inst.line )
 
         local hook = Async.getHook()
@@ -3608,14 +3672,18 @@ function Loader.execute( instructions, env, ... )
           if hook.count then
             hook.counter = hook.counter + 1
             if hook.counter % hook.count == 1 then
-              Loader.callFunc( hook.func, Loader._varargs("count", inst.line, hook.counter), function() end )
+              Loader.callFunc( hook.func, Loader._varargs(Loader._val("count"), Loader._val(inst.line), Loader._val(hook.counter)), function()
+                hook.inHook = false
+              end )
             end
           end
           if hook.mode:find"l" then
-            Loader.callFunc( hook.func, Loader._varargs("line", inst.line), function() end )
+            Loader.callFunc( hook.func, Loader._varargs(Loader._val("line"), Loader._val(inst.line)), function()
+              hook.inHook = false
+            end )
           end
-          hook.inHook = false
         end
+        return false --continue
       end
       -- print("  DEBUG: "..inst.line..": "..inst.op.."["..#callStack.."]")
       if inst.op == "assign" then
@@ -3662,7 +3730,10 @@ function Loader.execute( instructions, env, ... )
         Async.insertTasks({
           label = "return eval results",
           func = function( stack )
-            return { Loader._varargs(table.unpack(stack)) }
+            local vargs = Loader._varargs(table.unpack(stack))
+            Loader.onHookReturn( inst.line, vargs )
+            returnHookHandled = true
+            return { vargs }
           end
         })
         --inserts task
@@ -3866,7 +3937,15 @@ function Loader.execute( instructions, env, ... )
       end
 
       index = index + 1
-    end)
+    end),{
+      label = "execute - return hook",
+      func = function(...)
+        if not returnHookHandled then
+          Loader.onHookReturn( callStack[#callStack].line, Loader._varargs() )
+        end
+        return {...}
+      end
+    }
   )
 end
 
