@@ -158,4 +158,27 @@ do
   test:var_eq(6, "bar")
 end
 
+-----------------------
+--print(function)    --
+-----------------------
+do
+  --given
+  local src = [=[
+    function example(x,y)
+      return x+y
+    end
+    print( example )
+  ]=]
+  local env = Env:new()
+  local libs = testUtils.libs()
+  local common = testUtils.common(env)
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  common.printProxy{ function(x)
+    return type(x) == "string" and x:find"function"
+  end }.matched()
+
+  local test = testUtils.codeTest( tester, "next", env, libs, src ) 
+end
+
 return tester

@@ -2853,6 +2853,28 @@ function Loader.UNPACKER( fArgs )
   return fArgs
 end
 
+function Loader.tostring( x )
+  if not x then
+    return Loader._val("nil")
+  end
+  if x.type == "table" then
+    local event = Loader.getMetaEvent( x, "__tostring" )
+    if event and event.type == "function" then
+      Loader.callFunc( event, x, function( str ) --varargs result
+        Async.insertTasks(Async.RETURN("tostring metaevent result", {str.value} ))
+      end)
+    elseif event and event.type == "str" then
+      return event
+    else
+      return Loader._val(tostring( x.value ))
+    end
+  elseif x.type == "function" then
+    local argNames = table.concat(x.args,", ")
+    local name = x.name and (" "..x.name) or ""
+    return Loader._val("function"..name.."("..argNames.."):"..x.line)
+  end
+  return Loader._val(tostring( x.value ))
+end
 
 function Scope:new(name, line, parent, index, tableValue)
   local obj = {
@@ -3100,7 +3122,7 @@ end
 
 function Scope:addGlobals()
   self:setRaw(false, "_G", self:getTableValue())
-  self:setNativeFunc( "next",     function(tbl, key)
+  self:setNativeFunc( "next", function(tbl, key)
     if not tbl or tbl.type ~="table" then
       error"next expected table for arg 1"
     end
@@ -3108,7 +3130,7 @@ function Scope:addGlobals()
     local k2 = next(index, key and key.value)
     return index[k2], tbl.value[index[k2]]
   end,false,false )
-  self:setNativeFunc( "print",    print ) --adjusted in extras
+  
   self:setNativeFunc( "tonumber", function( x )
     return tonumber( x )
   end )
@@ -3121,21 +3143,41 @@ function Scope:addGlobals()
   end, false, false)
   --tostring(table.unpack{nil}) is an error
   --tostring( nil ) is not...
-  self:setNativeFunc( "tostring", function( x )
-    if x.type == "table" then
-      local event = Loader.getMetaEvent( x, "__tostring" )
-      if event and event.type == "function" then
-        Loader.callFunc( event, x, function( str ) --varargs result
-          Async.insertTasks(Async.RETURN("tostring metaevent result", {str.value} ))
-        end)
-      elseif event and event.type == "str" then
-        return event
-      else
-        return Loader._val(tostring( x.value ))
-      end
-    end
-    return Loader._val(tostring( x.value ))
-  end, false, false )
+  self:setNativeFunc( "tostring", Loader.tostring, false, false )
+  self:setNativeFunc( "print", function(...)
+    local args = {...}
+    Async.insertTasks(
+      {
+        label = "print - convert all tostring",
+        func = function()
+          for i=1, #args do
+            Async.insertTasks(
+              {
+                label = "print - tostring", 
+                func=function()
+                  return {Loader.tostring(args[i])}
+                end
+              },{
+                label = "print - tostring result", 
+                func = function(result)
+                  args[i] = result.value
+                  return true
+                end
+              }
+            )
+          end
+          return true
+        end
+      },{
+        label = "print - print",
+        func = function()
+          print(table.unpack(args))
+          return true
+        end
+      }
+    )
+    
+  end, false, false ) --adjusted in extras
 
   self:setNativeFunc( "ipairs",   function(tbl)
     if tbl.type ~= "table" then
@@ -4176,17 +4218,6 @@ end
 
 function Loader.installExtraFunctions()
   local src = [==[
-    do
-      local nativePrint = print
-      function print(...)
-        local args = {...}
-        for i=1, #args do
-          args[i] = tostring(args[i])
-        end
-        nativePrint(table.unpack(args))
-      end
-    end
-
     function table.keys( tbl )
       if type(tbl) ~= "table" then error("utils.keys expected table, got "..type(tbl),2) end
       local out = {}
