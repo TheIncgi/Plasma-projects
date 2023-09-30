@@ -4173,9 +4173,22 @@ function Net.require( path )
   --result handling
   Async.insertTasks(
     {
-      label = "Net.require",
+      label = "Net.require call",
+      func = function()
+        --network call
+        Net.result = nil
+        path = "https://raw.githubusercontent.com/"..path..".lua"
+        write_var(path, "url")
+        output("require", 1)
+        Async.yield = true
+        return true
+      end
+    },
+    {
+      label = "Net.require check",
       func = function()
         if not Net.result then
+          Async.yield = true
           return false -- wait till next tick
         end
         Loader.run(Net.result) -- returns values
@@ -4183,11 +4196,6 @@ function Net.require( path )
       end
     }
   )
-  --network call
-  Net.result = false
-  path = "https://raw.githubusercontent.com/"..path..".lua"
-  write_var(path, "url")
-  output("require", 1)
 end
 
 function Net.sourceCode()
