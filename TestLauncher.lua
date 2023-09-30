@@ -19,6 +19,8 @@ local tests = {
   "ShortCircuiting",
   "LoadTests",
   "_GTests",
+  "ErrorHandlingTests",
+  "DebugTests",
 }
 
 local totalPassed = 0

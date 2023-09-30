@@ -16,8 +16,9 @@ function testUtils.run( src, scope, Loader, Async )
   return Async.sync( Loader.execute( instructions, scope ) )
 end
 
-function testUtils.newScope(Scope)
-  local scope =  Scope:new("UNIT_TEST", 1, nil, 1)
+function testUtils.newScope(Scope, testName)
+  testName = testName or "?"
+  local scope =  Scope:new("UNIT_TEST-"..testName, 1, nil, 1)
   scope:addGlobals()
   scope:addPlasmaGlobals()
   return scope
@@ -25,7 +26,7 @@ end
 
 function testUtils.codeTest(tester, name, env, libs, src, expectedResultCount)
   return tester:add(name, env, function()
-    local scope = testUtils.newScope(libs.Scope)
+    local scope = testUtils.newScope(libs.Scope, name)
     local results = testUtils.run(src, scope, libs.Loader, libs.Async)
     results = results and results.varargs or {}
     if expectedResultCount and #results ~= expectedResultCount then
@@ -35,7 +36,7 @@ function testUtils.codeTest(tester, name, env, libs, src, expectedResultCount)
     for i=1,#results do
       tmp[i] = results[i].value
     end
-    return table.unpack(tmp)
+    return table.unpack(tmp,1,#results)
   end)
 end
 
@@ -47,6 +48,8 @@ function testUtils.common(env)
   local trigger = env:proxy("trigger", function() end)
   local write_var = env:proxy("write_var", function() end)
   local read_var = env:proxy("read_var", function() end)
+  
+  write_var.realDefault = true
 
   return {
     printProxy = printProxy,
@@ -54,6 +57,18 @@ function testUtils.common(env)
     write_var = write_var,
     read_var = read_var
   }
+end
+
+function testUtils.var_pattern(test, argN, pattern)
+  test:expect(function()
+    local value = test.actionResults[argN]
+    if type(value) ~= "string" then
+      return false
+    end
+    return not not value:match(pattern), 
+      ("Expected string matching `%s` got `%s`")
+      :format(pattern, value)
+  end)
 end
 
 function testUtils.readSource( path )

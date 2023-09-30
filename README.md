@@ -13,6 +13,8 @@ https://github.com/users/TheIncgi/projects/2/views/1
  - 5.3's `//` idiv op
  - Bitwise operators `~`, `<<`, `|`, `&`, `>>`, `>>>` (bit not, shift left, or, and shift right, logical shift right)\
  - Auto pauses each tick, adjustable # of ops per tick (based on internal loops mostly) 
+ - When doing formatting like `("%2d:%d"):format(hour, min)` the first `()` can be skipped like this:
+   `"%2d:%d":format(hour, min)`
 
 ### Planned features
  - Support for `+=` `-=` `/=` `*=` `~=`, `<<=`, `|=`, `&=`, `>>=`, `>>>=`

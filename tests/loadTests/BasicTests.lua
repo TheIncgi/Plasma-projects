@@ -24,6 +24,7 @@ do
   ]=]
   local env = Env:new()
   local libs = testUtils.libs()
+  local common = testUtils.common(env)
   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
 
   local printProxy = env:proxy("print", function() end)
@@ -46,6 +47,7 @@ do
   ]=]
   local env = Env:new()
   local libs = testUtils.libs()
+  local common = testUtils.common(env)
   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
 
   local test = testUtils.codeTest( tester, ", order", env, libs, src )
@@ -68,6 +70,7 @@ do
   ]=]
   local env = Env:new()
   local libs = testUtils.libs()
+  local common = testUtils.common(env)
   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
 
   local test = testUtils.codeTest( tester, "(), order", env, libs, src )
@@ -91,6 +94,7 @@ do
   ]=]
   local env = Env:new()
   local libs = testUtils.libs()
+  local common = testUtils.common(env)
   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
 
   local test = testUtils.codeTest( tester, ",() order", env, libs, src )
@@ -117,6 +121,7 @@ do
   ]=]
   local env = Env:new()
   local libs = testUtils.libs()
+  local common = testUtils.common(env)
   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
 
   local test = testUtils.codeTest( tester, ",(), order", env, libs, src )
@@ -124,6 +129,56 @@ do
   test:var_eq(1, 5)
   test:var_eq(2, 1)
   test:var_eq(3, 7)
+end
+
+---------
+--next --
+---------
+do
+  --given
+  local src = [=[
+    t = {10,20, foo="bar"}
+    a,b = next(t)
+    c,d = next(t,a)
+    e,f = next(t,c)
+    return a,b,c,d,e,f
+  ]=]
+  local env = Env:new()
+  local libs = testUtils.libs()
+  local common = testUtils.common(env)
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local test = testUtils.codeTest( tester, "next", env, libs, src )
+  
+  test:var_eq(1, 1)
+  test:var_eq(2, 10)
+  test:var_eq(3, 2)
+  test:var_eq(4, 20)
+  test:var_eq(5, "foo")
+  test:var_eq(6, "bar")
+end
+
+-----------------------
+--print(function)    --
+-----------------------
+do
+  --given
+  local src = [=[
+    function example(x,y)
+      return x+y
+    end
+    print( example )
+  ]=]
+  local env = Env:new()
+  local libs = testUtils.libs()
+  local common = testUtils.common(env)
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  common.printProxy{ function(x)
+    return type(x) == "string" and x:find"function"
+  end }.matched()
+
+  local test = testUtils.codeTest( tester, "next", env, libs, src ) 
 end
 
 return tester
