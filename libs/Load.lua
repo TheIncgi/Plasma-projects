@@ -234,6 +234,10 @@ function Async.loop( syncTask )
         if not ok then
           __args = { Loader._val(ok), Loader._val(value) }
           local e = t
+          local scope = Async.getScope()
+          if scope then
+            e = e.."\n"..scope:getStackTraceAsString()
+          end
           while threads[threadOnCall] and #threads[threadOnCall] > 0 do --skip until next task is errorHandler
             e = threads[threadOnCall][1]
             if e.errorHandler then
@@ -2976,6 +2980,9 @@ function Scope:getStackTraceAsString(text)
 end
 
 function Scope:setRaw(isLocal, name, value)
+  if type(value) ~= "table" and type(value) ~= "nil" then
+    error("scope:setRaw expects wrapped value or nil",2)
+  end
   if isLocal or self:hasKey(name) or not self.parent then
     Loader.assignToTable(self.tableValue, Loader._val(name), value)
   else
@@ -3120,14 +3127,14 @@ function Scope:addPlasmaGlobals()
 end
 
 function Scope:setPlasmaInputs()
-  self:setRaw(false, "V1", V1) -- V1-V8 isn't in _G in plasma
-  self:setRaw(false, "V2", V2)
-  self:setRaw(false, "V3", V3)
-  self:setRaw(false, "V4", V4)
-  self:setRaw(false, "V5", V5)
-  self:setRaw(false, "V6", V6)
-  self:setRaw(false, "V7", V7)
-  self:setRaw(false, "V8", V8)
+  self:setRaw(false, "V1", Loader._val(V1)) -- V1-V8 isn't in _G in plasma
+  self:setRaw(false, "V2", Loader._val(V2))
+  self:setRaw(false, "V3", Loader._val(V3))
+  self:setRaw(false, "V4", Loader._val(V4))
+  self:setRaw(false, "V5", Loader._val(V5))
+  self:setRaw(false, "V6", Loader._val(V6))
+  self:setRaw(false, "V7", Loader._val(V7))
+  self:setRaw(false, "V8", Loader._val(V8))
 end
 
 function Scope:addGlobals()
