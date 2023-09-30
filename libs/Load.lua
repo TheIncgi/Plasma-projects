@@ -4071,7 +4071,7 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
         if loop and loop.op == "for" then --initalized with an assign, incremented on end
           local var = top:getRaw(inst.start.var.value).value
           local inc = top:getRaw"$increment".value
-          top:set(true, inst.start.var.value, Loader._val(var + inc))
+          top:setRaw(true, inst.start.var.value, Loader._val(var + inc))
       
           index = inst.start.index
           return --continue
