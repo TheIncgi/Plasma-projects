@@ -36,7 +36,7 @@ do
   test:var_eq(1, [[stack traceback:
 	line 2 in function foo
 	line 5 in function bar
-	line 7 in UNIT_TEST]])
+	line 7 in UNIT_TEST-debug-traceback]])
 end
 
 ---------------------------
@@ -61,8 +61,7 @@ do
   local test = testUtils.codeTest(tester, "debug-traceback-err", env, libs, src)
 
   test:var_eq(1, false)
-  testUtils.var_pattern() --TODO
-  test:var_eq(2, [[stack traceback:
+  testUtils.var_pattern(test, 2, [[stack traceback:
 	line 2 in function foo
 	line 5 in function bar
 	line 7 in UNIT_TEST]])
@@ -94,7 +93,7 @@ do
   test:var_eq(2, 2)
   test:var_eq(3, "function bar")
   test:var_eq(4, 5)
-  test:var_eq(5, "UNIT_TEST")
+  test:var_eq(5, "UNIT_TEST-debug-traceback-table")
   test:var_eq(6, 7)
 end
 
