@@ -35,7 +35,7 @@ function testUtils.codeTest(tester, name, env, libs, src, expectedResultCount)
     for i=1,#results do
       tmp[i] = results[i].value
     end
-    return table.unpack(tmp)
+    return table.unpack(tmp,1,#results)
   end)
 end
 

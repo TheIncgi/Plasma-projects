@@ -217,17 +217,25 @@ end
 local __args = {}
 function Async.loop( syncTask )
   stepsPerLoop = syncTask and 1 or read_var"stepsperloop" or 1
+  local inputsUpdated = {}
   repeat
     for steps = 1, stepsPerLoop do
       if threads and Async.activeThread and threads[Async.activeThread] and #threads[Async.activeThread] > 0 then
-        local theadOnCall = Async.activeThread
-        local t = threads[theadOnCall][1]
+        local threadOnCall = Async.activeThread
+        if threadOnCall and not inputsUpdated[threadOnCall] then
+          local scope = Async.getScope()
+          if scope then
+            scope:setPlasmaInputs()
+            inputsUpdated[threadOnCall] = true
+          end
+        end
+        local t = threads[threadOnCall][1]
         local ok, value = pcall( t.func, table.unpack(__args))
         if not ok then
           __args = { Loader._val(ok), Loader._val(value) }
           local e = t
-          while threads[theadOnCall] and #threads[theadOnCall] > 0 do --skip until next task is errorHandler
-            e = threads[theadOnCall][1]
+          while threads[threadOnCall] and #threads[threadOnCall] > 0 do --skip until next task is errorHandler
+            e = threads[threadOnCall][1]
             if e.errorHandler then
               if type(e.errorHandler) == "function" then
                 e.errorHandler( value )
@@ -244,10 +252,10 @@ function Async.loop( syncTask )
           if value == false then
             --
           elseif type(value) == "table" then
-            Async.removeTask( t, theadOnCall )
+            Async.removeTask( t, threadOnCall )
             __args = value
           elseif value == true then
-            Async.removeTask( t, theadOnCall )
+            Async.removeTask( t, threadOnCall )
           else
             error( "Invalid task result during sync",2 )
           end
@@ -344,7 +352,7 @@ end
 
 --static method of getting active scope
 function Async.getScope( scope )
-  return Async.threads[ Async.activeThread ] and Async.threads[ Async.activeThread ].scope
+  return Async.threads and Async.threads[ Async.activeThread ] and Async.threads[ Async.activeThread ].scope
 end
 
 local insertTasks = Async.insertTasks
@@ -3112,7 +3120,7 @@ function Scope:addPlasmaGlobals()
 end
 
 function Scope:setPlasmaInputs()
-  self:setRaw(false, "V1", V1) -- V1-V8 isn't in _G
+  self:setRaw(false, "V1", V1) -- V1-V8 isn't in _G in plasma
   self:setRaw(false, "V2", V2)
   self:setRaw(false, "V3", V3)
   self:setRaw(false, "V4", V4)

@@ -54,8 +54,8 @@ do
 
   local test = testUtils.codeTest(tester, "pcall-clean-no-return", env, libs, src)
 
-  test:var_eq(2, val)
   test:var_eq(1, true)
+  test:var_eq(2, nil)
   test:var_eq(3, 10)
 end
 
