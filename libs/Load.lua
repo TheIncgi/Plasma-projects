@@ -1,9 +1,13 @@
---copied & modified from plasmaNN.lua
+--Meta Lua 1.0.0
+--Authors:
+--  TheIncgi
+-- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
 
 local Async = {}
 local Loader = {}
 local Scope = {}
 local Net = {}
+local utils = {}
 
 Loader.tableIndexes = {}
 Loader.strings = {}
@@ -266,6 +270,14 @@ function Async.loop( syncTask )
         end
         if t == syncTask then
           return table.unpack(__args)
+        end
+        if Async.yield then
+          Async.yield = false
+          if syncTask then
+            break
+          else
+            return
+          end
         end
       else
         break
@@ -3125,7 +3137,9 @@ function Scope:addPlasmaGlobals()
   self:setNativeFunc( "trigger",    trigger     )
   self:setNativeFunc( "read_var",   read_var    )
   self:setNativeFunc( "write_var",  write_var   )
-  self:setNativeFunc( "require",    Net.require, nil, function( results )
+  self:setNativeFunc( "require",    function( path )
+    Net.require( path )
+  end, nil, function( results )
     return results.varargs
   end ) --use default unpacker, do not use packer (run returns varargs)
 end
@@ -3247,6 +3261,24 @@ function Scope:addGlobals()
   self:setNativeFunc( "setmetatable", Loader.setmetatable, false, false )
   self:setNativeFunc( "rawset", Loader.assignToTable, false, false )
   self:setNativeFunc( "rawget", Loader.indexTable, false, false )
+  self:setNativeFunc( "yield", function()
+    Async.yield = true
+  end, false, false )
+  self:setNativeFunc( "sleep", function( time )
+    local now = read_var"tick"
+    local tps = read_var"tps"
+    local duration = time * tps
+    Async.insertTasks({
+      label = "sleep",
+      func = function()
+        if read_var"tick" - now >= duration then
+          return true
+        end
+        Async.yield = true
+        return false
+      end
+    })
+  end, nil, false )
   self:setNativeFunc( "load", function(src, blockName, mode, env)
     src = src.value
     blockName = blockName and blockName.value or "[?]"
@@ -4203,7 +4235,6 @@ function Net.sourceCode()
 end
 
 --serialization
-local utils = {}
 function utils.keys( tbl )
   if type(tbl) ~= "table" then error("utils.keys expected table, got "..type(tbl),2) end
   local out = {}
