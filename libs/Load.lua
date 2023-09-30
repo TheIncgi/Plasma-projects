@@ -2004,7 +2004,8 @@ function Loader._initalizeTable( tableToken, scope, line )
         if key[1] and key[1].type == "number" and
           #val > 1 then
           for vargn = 2, #val do
-            Loader.assignToTable(var, Loader._val(val[1].value + vargn - 1), val[vargn] )
+            print(val[1].value)
+            Loader.assignToTable(var, Loader._val(key[1].value + vargn - 1), val[vargn] )
           end
         end
         -- newTable[key] = val[1]
@@ -2869,9 +2870,10 @@ function Loader.tostring( x )
       return Loader._val(tostring( x.value ))
     end
   elseif x.type == "function" then
-    local argNames = table.concat(x.args,", ")
+    local argNames = x.args and table.concat(x.args,", ") or "?"
     local name = x.name and (" "..x.name) or ""
-    return Loader._val("function"..name.."("..argNames.."):"..x.line)
+    local line = x.line and ":"..x.line or ""
+    return Loader._val("function"..name.."("..argNames..")"..line)
   end
   return Loader._val(tostring( x.value ))
 end
