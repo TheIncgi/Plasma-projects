@@ -4287,7 +4287,7 @@ function Loader.installExtraFunctions()
       end
       visited[tbl] = true
       local out = { "{" }
-      local keys = utils.keys(tbl)
+      local keys = table.keys(tbl)
       table.sort( keys, sortFunc or function( a,b )
         if type(a)~=type(b) then
           return type(a)<type(b)
@@ -4296,7 +4296,7 @@ function Loader.installExtraFunctions()
       end ) --sortFunc is optional
       for i,v in ipairs( tbl ) do
         if #out > 1 then table.insert( out, ', ' ) end
-        table.insert( out, utils.serializeOrdered(v) )
+        table.insert( out, table.serialize(v) )
       end
       for i,k in ipairs( keys ) do
         if type(k)~="number" then
@@ -4305,7 +4305,7 @@ function Loader.installExtraFunctions()
           if #out > 1 then table.insert( out, ', ' ) end
           table.insert( out, k )
           table.insert( out, ' = ' )
-          table.insert( out,  utils.serializeOrdered(v, sortFunc))
+          table.insert( out,  table.serialize(v, sortFunc))
         end
       end
       table.insert(out,"}")
