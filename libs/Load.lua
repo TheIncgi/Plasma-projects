@@ -4095,7 +4095,10 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
             local value = (stack[1] or Loader.constants["nil"]).value
             if not value then
               index = inst.skip.index + 1 -- skip end instruction which sends back to this instruction
+            else
+              index = index + 1
             end
+            return true
           end
         })
 
