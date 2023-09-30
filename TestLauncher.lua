@@ -21,6 +21,7 @@ local tests = {
   "_GTests",
   "ErrorHandlingTests",
   "DebugTests",
+  "REPLTest",
 }
 
 local totalPassed = 0

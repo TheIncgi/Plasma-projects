@@ -148,4 +148,40 @@ do
   common.printProxy{"ok"}.exact()
 end
 
+-------------------------
+-- load - line numbers --
+-------------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  common.printProxy.realDefault = false
+  
+  local src = [==[
+    loaded = load([=[
+      function b()
+        error"oh no!"
+      end
+
+      function a()
+        b()
+      end
+
+      a()
+    ]=], "test", "t")
+    return pcall(loaded)
+  ]==]
+    
+  local test = testUtils.codeTest(tester, "load-line-numbers", env, libs, src)
+  test:var_eq(1, false)
+  testUtils.var_pattern(test,2,"function b%:2%: oh no%!")
+  testUtils.var_pattern(test,2,"line 2 in function b")
+  testUtils.var_pattern(test,2,"line 6 in function a")
+  testUtils.var_pattern(test,2,"line 9 in UNIT_TEST")
+  testUtils.var_pattern(test,2,"line 12 in UNIT_TEST")
+  
+end
+
 return tester

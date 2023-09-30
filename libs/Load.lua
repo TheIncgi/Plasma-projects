@@ -4,6 +4,7 @@ local Async = {}
 local Loader = {}
 local Scope = {}
 local Net = {}
+local utils = {}
 
 Loader.tableIndexes = {}
 Loader.strings = {}
@@ -4195,7 +4196,6 @@ function Net.sourceCode()
 end
 
 --serialization
-local utils = {}
 function utils.keys( tbl )
   if type(tbl) ~= "table" then error("utils.keys expected table, got "..type(tbl),2) end
   local out = {}
