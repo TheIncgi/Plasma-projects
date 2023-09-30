@@ -75,4 +75,26 @@ do
   test:var_eq(4, true, "value 4 expected true, got $1")
 end
 
+-----------
+-- {...} --
+-----------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    function test(...)
+      return {...}
+    end
+
+    return #test(1,2,3)
+  ]=]
+
+  local test = testUtils.codeTest(tester, "{...}", env, libs, src)
+
+  test:var_eq(1, 3)
+end
+
 return tester

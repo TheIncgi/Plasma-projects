@@ -2000,6 +2000,13 @@ function Loader._initalizeTable( tableToken, scope, line )
       label = "_initalizeTable-value-result",
       func = function(val)
         Loader.assignToTable(var, key[1], val[1])
+
+        if key[1] and key[1].type == "number" and
+          #val > 1 then
+          for vargn = 2, #val do
+            Loader.assignToTable(var, Loader._val(val[1].value + vargn - 1), val[vargn] )
+          end
+        end
         -- newTable[key] = val[1]
 
         return true
@@ -3101,7 +3108,7 @@ function Scope:addGlobals()
     local k2 = next(index, key and key.value)
     return index[k2], tbl.value[index[k2]]
   end,false,false )
-  self:setNativeFunc( "print",    print )
+  self:setNativeFunc( "print",    print ) --adjusted in extras
   self:setNativeFunc( "tonumber", function( x )
     return tonumber( x )
   end )
@@ -4169,6 +4176,17 @@ end
 
 function Loader.installExtraFunctions()
   local src = [==[
+    do
+      local nativePrint = print
+      function print(...)
+        local args = {...}
+        for i=1, #args do
+          args[i] = tostring(args[i])
+        end
+        nativePrint(table.unpack(args))
+      end
+    end
+
     function table.keys( tbl )
       if type(tbl) ~= "table" then error("utils.keys expected table, got "..type(tbl),2) end
       local out = {}
