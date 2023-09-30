@@ -12,9 +12,9 @@ local tester = Tester:new()
 -- Tests
 -----------------------------------------------------------------
 
--------------------
--- pcall - clean --
--------------------
+----------
+-- REPL --
+----------
 do
   local env = Env:new()
   local common = testUtils.common(env)
