@@ -16,8 +16,9 @@ function testUtils.run( src, scope, Loader, Async )
   return Async.sync( Loader.execute( instructions, scope ) )
 end
 
-function testUtils.newScope(Scope)
-  local scope =  Scope:new("UNIT_TEST", 1, nil, 1)
+function testUtils.newScope(Scope, testName)
+  testName = testName or "?"
+  local scope =  Scope:new("UNIT_TEST-"..testName, 1, nil, 1)
   scope:addGlobals()
   scope:addPlasmaGlobals()
   return scope
@@ -25,7 +26,7 @@ end
 
 function testUtils.codeTest(tester, name, env, libs, src, expectedResultCount)
   return tester:add(name, env, function()
-    local scope = testUtils.newScope(libs.Scope)
+    local scope = testUtils.newScope(libs.Scope, name)
     local results = testUtils.run(src, scope, libs.Loader, libs.Async)
     results = results and results.varargs or {}
     if expectedResultCount and #results ~= expectedResultCount then

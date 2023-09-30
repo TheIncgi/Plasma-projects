@@ -39,6 +39,35 @@ do
 	line 7 in UNIT_TEST]])
 end
 
+---------------------------
+-- debug - traceback err --
+---------------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    function foo()
+      error"trace"
+    end
+    function bar()
+      return foo()
+    end
+    return pcall(bar)
+  ]=]
+
+  local test = testUtils.codeTest(tester, "debug-traceback-err", env, libs, src)
+
+  test:var_eq(1, false)
+  testUtils.var_pattern() --TODO
+  test:var_eq(2, [[stack traceback:
+	line 2 in function foo
+	line 5 in function bar
+	line 7 in UNIT_TEST]])
+end
+
 -----------------------------
 -- debug - traceback table --
 -----------------------------

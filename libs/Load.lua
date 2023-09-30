@@ -232,12 +232,12 @@ function Async.loop( syncTask )
         local t = threads[threadOnCall][1]
         local ok, value = pcall( t.func, table.unpack(__args))
         if not ok then
-          __args = { Loader._val(ok), Loader._val(value) }
           local e = t
           local scope = Async.getScope()
           if scope then
-            e = e.."\n"..scope:getStackTraceAsString()
+            value = value.."\n"..scope:getStackTraceAsString()
           end
+          __args = { Loader._val(ok), Loader._val(value) }
           while threads[threadOnCall] and #threads[threadOnCall] > 0 do --skip until next task is errorHandler
             e = threads[threadOnCall][1]
             if e.errorHandler then
@@ -2016,7 +2016,7 @@ function Loader._initalizeTable( tableToken, scope, line )
         if key[1] and key[1].type == "number" and
           #val > 1 then
           for vargn = 2, #val do
-            print(val[1].value)
+            --print(val[1].value)
             Loader.assignToTable(var, Loader._val(key[1].value + vargn - 1), val[vargn] )
           end
         end
@@ -2854,7 +2854,11 @@ end
 
 function Loader.PACKER( results )
   for i=1, #results do
-    results[i] = Loader._val(results[i])
+    if type(results[i]) == "function" then
+      results[i] = Scope:makeNativeFunc( "generated", results[i] )
+    else
+      results[i] = Loader._val(results[i])
+    end
   end
   return results
 end
