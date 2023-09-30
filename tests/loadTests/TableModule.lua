@@ -360,6 +360,39 @@ do
   test:var_isTrue(1, "Table is not sorted")
 end
 
+--------------
+-- assign[] --
+--------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = {{}, foo={}}
+    t[2] = "ok"
+    t[t[2]] = "very ok"
+    t[1][1] = "z"
+    t[1].foo = "yes"
+    t.foo[1] = "also"
+    t[3], t.q = "X", "Y"
+    return t[2], t.ok, t[1][1], t[1].foo, t.foo[1], t[3], t.q
+  ]=]
+
+  local test = testUtils.codeTest(tester, "assign[]", env, libs, src)
+
+  test:var_eq(1, "ok")
+  test:var_eq(2, "very ok")
+  test:var_eq(3, "z")
+  test:var_eq(4, "yes")
+  test:var_eq(5, "also")
+  test:var_eq(6, "X")
+  test:var_eq(7, "Y")
+end
+
+--out[#out+1] = a
+
 --insert remove pack concat sort unpack
 
 -----------

@@ -35,6 +35,30 @@ do
   test:var_eq(1, true)
 end
 
+-------------------------------
+-- pcall - clean - no return --
+-------------------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local function safe(x)
+      y = x
+    end
+    local ok, val = pcall( safe, 10 )
+    return ok, val, y
+  ]=]
+
+  local test = testUtils.codeTest(tester, "pcall-clean-no-return", env, libs, src)
+
+  test:var_eq(2, val)
+  test:var_eq(1, true)
+  test:var_eq(3, 10)
+end
+
 -------------------
 -- pcall - error --
 -------------------

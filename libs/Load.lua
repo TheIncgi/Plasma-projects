@@ -669,30 +669,108 @@ function Loader.cleanupTokens( tokens )
         infoToken.value = token == "true"
       
       elseif tokenType == "op" or (tokenType=="keyword" and token == "in") then
-        if (token == "=" or token == "in") and (prior and prior.type == "var") then
+        if (token == "=" or token == "in") and (prior and (prior.type == "var" or prior.value == "]")) then
           local newToken = {
             type = "assignment-set",
             token = token,
-            value = {prior},
+            value = {},
             line = line
           }
-          tokens[index-1] = newToken
+          tokens[index] = newToken
+
+          local open = 0
+          -- if prior.value ~= "]" then
+          --   --newToken.value[1] = prior
+          -- else
+          --   open = 1
+          --   exp[1] = prior
+          -- end
           
-          while twicePrior and twicePrior.type == "op" and (twicePrior.value == "," or twicePrior.value == ".") 
-          and (tokens[index-3].type=="var") do
-            local op = table.remove( tokens, index-2 ) -- , or .
-            local v = table.remove( tokens, index-3) --____. or ____,
-            
-            index = index - 2
-            if op.value == "," then
-              table.insert(newToken.value, 1, v)
-            else
-              newToken.value[1].value = v.value ..".".. newToken.value[1].value
+          -- while open > 0 and tokens[index] or (prior and prior.value == "]") or ((twicePrior and twicePrior.type == "op" and (twicePrior.value == "," or twicePrior.value == ".")) 
+          -- and (tokens[index-3].type=="var")) do
+          -- if open > 0 then
+          repeat
+            local exp = {}
+            if tokens[index-1].value == "," then --from loop
+              table.remove(tokens, index-1)
+              index = index - 1
             end
-            twicePrior = tokens[index-2]
-          end
-          table.remove(tokens, index)
+            repeat
+              local t = table.remove(tokens, index-1)
+              index = index - 1
+              table.insert(exp, 1, t)
+              if t.value == "]" then
+                open = open+1
+              elseif t.index and t.value == "[" then
+                open = open-1
+              end
+            until open <= 0
+              and (not tokens[index-1] or tokens[index-1].value ~= "]")
+              and (not tokens[index-1] or t.type~="var" or tokens[index-1].value~=".")
+              and exp[1].type == "var"
+
+            local split = {infix = {place = exp, index = {}}}
+            if #exp > 1 then
+              while #exp > 0 do
+                local t = table.remove(exp)
+                if t.value == "]" then open = open + 1
+                elseif t.value == "[" then open = open - 1
+                end
+                table.insert(split.infix.index, 1, t)
+                if (t.index or t.value == ".") and open == 0 then break end
+              end
+              if split.infix.index[1].value == "." then
+                table.remove(split.infix.index, 1)
+                split.infix.index[1] = Loader._val( split.infix.index[1].value )
+              elseif split.infix.index[1].value == "[" then
+                table.remove(split.infix.index, 1)
+                table.remove(split.infix.index)
+              end
+              table.insert(newToken.value, 1, split)
+            else
+              table.insert(newToken.value, 1, exp[1])
+            end
+          until not tokens[index]
+          or (not tokens[index-1] or tokens[index-1].value~="," or not tokens[index-2] or (tokens[index-2].type ~= "var" and tokens[index-2].value ~= "]"))
+          index = index + 1
+            -- end
+            -- if prior.value == "]" then
+              
+            --   repeat
+            --     table.insert(exp, 1, t)
+            --     index = index - 1
+            --     if t.value == "]" then
+            --       open = open+1
+            --     elseif t.index and t.value == "[" then
+            --       open = open-1
+            --     end
+            --   until t.index and open == 0 and (not tokens[index-2] or (tokens[index-2].value~="]") and (not tokens[index-3] or tokens[index-3].value~="."))
+            --   table.insert(exp, 1, table.remove(tokens, index-2))
+            --   index = index-1
+            --   local split = {infix = {place = exp, index = { table.remove(exp) }}}
+            --   while #exp > 0 do
+            --     local t = table.remove(exp)
+            --     table.insert(split.infix.index, 1, t)
+            --     if t.index then break end
+            --   end
+            --   table.insert(newToken.value, 1, split)
+            --   prior = tokens[index-1]
+            -- else
+            --   local op = table.remove( tokens, index-2 ) -- , or .
+            --   local v = table.remove( tokens, index-3) --____. or ____,
+              
+            --   index = index - 2
+            --   if op.value == "," then
+            --     table.insert(newToken.value, 1, v)
+            --   else
+            --     newToken.value[1].value = v.value ..".".. newToken.value[1].value
+            --   end
+            --   twicePrior = tokens[index-2]
+            -- end
+          --end
+          --table.remove(tokens, index)
           return --continue
+
         elseif token == "(" or token == "{" then -- " doesn't
           if prior and (
               (prior.type == "var")
@@ -871,7 +949,11 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma,
           table.insert(keys, a)
         end
       end
-      error("Can't start an expression with op `"..tokens[start].value.."` must be one of: "..table.concat(keys,", "))
+      if tokens[start].line then
+        error(tokens[start].line..":Can't start an expression with op `"..tokens[start].value.."` must be one of: "..table.concat(keys,", "))
+      else
+        error("Can't start an expression with op `"..tokens[start].value.."` must be one of: "..table.concat(keys,", "))
+      end
     end
   end
   return Async.insertTasks(
@@ -1511,6 +1593,9 @@ function Loader.batchPostfix( instructions )
       if inst.instructions then
         Loader.batchPostfix( inst.instructions ) --inserts task
         --continues into subtask at end of loop itteration
+      end
+      if inst.op == "assign" then
+        Loader.batchPostfix( inst.vars )
       end
       if inst.infix then
         inst.postfix = {}
@@ -2678,7 +2763,7 @@ function Loader.eval( postfix, scope, line )
         })
         Loader._initalizeTable( token, scope, line )
       elseif token.type == "keyword" and token.op == "function" then
-          local locals = scope:captureLocals()
+          local locals = scope--:captureLocals()
           local fenv = Scope:new("fenv: "..token.name, token.line, scope, index, locals)
           local fval = {
             env = fenv,
@@ -2996,7 +3081,14 @@ end
 
 function Scope:addGlobals()
   self:setRaw(false, "_G", self:getTableValue())
-  self:setNativeFunc( "next",     next )
+  self:setNativeFunc( "next",     function(tbl, key)
+    if not tbl or tbl.type ~="table" then
+      error"next expected table for arg 1"
+    end
+    local index = Loader.getTableIndex(tbl)
+    local k2 = next(index, key and key.value)
+    return index[k2], tbl.value[index[k2]]
+  end,false,false )
   self:setNativeFunc( "print",    print )
   self:setNativeFunc( "tonumber", function( x )
     return tonumber( x )
@@ -3100,7 +3192,7 @@ function Scope:addGlobals()
         Loader.callFunc( sFunc, fArgs, function(result)
           values = {
             Loader.constants["true"],
-            table.unpack(result.varargs)
+            table.unpack((result or Loader._varargs()).varargs)
           }
         end)
         return true
@@ -3126,7 +3218,7 @@ function Scope:addGlobals()
         Loader.callFunc( sFunc, fArgs, function(result)
           values = {
             Loader.constants["true"],
-            table.unpack(result.varargs)
+            table.unpack((result or Loader._varargs()).varargs)
           }
         end)
         return true
@@ -3163,6 +3255,11 @@ function Scope:addGlobals()
     end
     error( msg )
   end, false, false)
+  self:setRaw(false, "_VERSION", Loader._val("MetaLua 1.0.0"))
+
+  local authors = Loader.newTable()
+  Loader.assignToTable(authors, Loader._val(1), Loader._val("TheIncgi"))
+  self:setRaw(false, "_AUTHORS", authors)
   ---------------------------------------------------------
   -- math
   ---------------------------------------------------------
@@ -3543,7 +3640,44 @@ function Loader._getTableAssignmentTargets(vars, top)
         Async.forEach("Loader._getTableAssignmentTargets", 
           function(i,var)
             local tmp = {}
-            for x in var.value:gmatch"[^.]+" do
+            if type(var) == "table" and var.postfix then
+              local place
+              
+              Async.insertTasks(
+                {
+                  label = "Loader._getTableAssignmentTargets - eval [] place",
+                  func = function()
+                    Loader.eval(var.postfix.place,top, var.postfix.place[1].line)
+                    return true
+                  end
+                },{
+                  label = "Loader._getTableAssignmentTargets - eval [] place result",
+                  func = function(results)
+                    place = results[1]
+                    return true
+                  end
+                },{
+                  label = "Loader._getTableAssignmentTargets - eval [] index",
+                  func = function()
+                    Loader.eval(var.postfix.index,top, var.postfix.index[1].line)
+                    return true
+                  end
+                },{
+                  label = "Loader._getTableAssignmentTargets - eval [] index result",
+                  func = function(results)
+                    table.insert(targets,{
+                      place = place,
+                      name = results[1].value
+                    })
+                    return true
+                  end
+                }
+              )
+
+              return --true would be break
+            end
+
+            for x in var.value:gmatch"[^.]+" do --split on .
               table.insert(tmp, x)
             end
 
@@ -3581,8 +3715,8 @@ function Loader._getTableAssignmentTargets(vars, top)
                   label = "Loader._getTableAssignmentTargets - eval result",
                   func = function( results )
                     table.insert(targets,{
-                      place = results[1], 
-                      name = tmp[#tmp]
+                      place = results[1], --table to assign to
+                      name = tmp[#tmp] --final index
                     })
                     return true
                   end
@@ -3742,14 +3876,14 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
         Loader.eval( inst.postfix.eval, top, inst.line )
         return true --exit, return values from task passed
       elseif inst.op == "function" then --capture locals & add to env
-        local locals = callStack[#callStack]:captureLocals()
+        --local locals = callStack[#callStack]:captureLocals()
 
         Async.insertTasks(
           Loader._getTableAssignmentTargets({Loader._val(inst.name)}, top),
           {
             label = "Execute - function",
             func = function( targets )
-              local fenv = Scope:new("fenv: "..inst.name, inst.line, top, index, locals)
+              local fenv = Scope:new("fenv: "..inst.name, inst.line, top, index)--, locals)
               local fval = {
                 env = fenv,
                 instructions = inst.instructions,
@@ -3821,8 +3955,8 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
         local loop = inst.start
 
         if loop and loop.op == "for" then --initalized with an assign, incremented on end
-          local var = top:get(inst.start.var.value).value
-          local inc = top:get"$increment".value
+          local var = top:getRaw(inst.start.var.value).value
+          local inc = top:getRaw"$increment".value
           top:set(true, inst.start.var.value, Loader._val(var + inc))
       
           index = inst.start.index
@@ -3858,9 +3992,9 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
         top.isLoop = true
         top.stop = inst.skip
 
-        local inc = top:get"$increment".value
-        local limit = top:get"$limit".value
-        local var = top:get(inst.var.value).value
+        local inc = top:getRaw"$increment".value
+        local limit = top:getRaw"$limit".value
+        local var = top:getRaw(inst.var.value).value
         if (inc > 0 and limit >= var)
         or (inc < 0 and limit <= var) then
           index = index + 1
@@ -4021,6 +4155,53 @@ function utils.serializeOrdered( tbl, sortFunc, visited )
   return table.concat(out)
 end
 
+function Loader.installExtraFunctions()
+  local src = [==[
+    function table.keys( tbl )
+      if type(tbl) ~= "table" then error("utils.keys expected table, got "..type(tbl),2) end
+      local out = {}
+      for a in pairs( tbl ) do
+        table.insert(out, a)
+      end
+      return out  
+    end
+
+    function table.serialize( tbl, sortFunc, visited )
+      if type(tbl)~="table" then return type(tbl)=="string" and ('"'..tostring(tbl)..'"') or tostring(tbl) end
+      visited = visited or {}
+      if visited[tbl] then
+        return tostring(tbl)
+      end
+      visited[tbl] = true
+      local out = { "{" }
+      local keys = utils.keys(tbl)
+      table.sort( keys, sortFunc or function( a,b )
+        if type(a)~=type(b) then
+          return type(a)<type(b)
+        end
+        return a<b
+      end ) --sortFunc is optional
+      for i,v in ipairs( tbl ) do
+        if #out > 1 then table.insert( out, ', ' ) end
+        table.insert( out, utils.serializeOrdered(v) )
+      end
+      for i,k in ipairs( keys ) do
+        if type(k)~="number" then
+          local v = tbl[k]
+          local tv = type(v)
+          if #out > 1 then table.insert( out, ', ' ) end
+          table.insert( out, k )
+          table.insert( out, ' = ' )
+          table.insert( out,  utils.serializeOrdered(v, sortFunc))
+        end
+      end
+      table.insert(out,"}")
+      return table.concat(out)
+    end
+  ]==]
+  Loader.run(src)
+end
+
 --===================================================================================
 --===================================================================================
 --==============================        Plasma        ===============================
@@ -4070,7 +4251,7 @@ function Loader.run(src)
               label = "run-execute",
               func = function()
                 DBG.inst = instructions
-                LOG(utils.serializeOrdered(DBG))
+                --LOG(utils.serializeOrdered(DBG))
                 Loader.execute(instructions, Plasma.scope)
                 return true
               end
@@ -4182,7 +4363,7 @@ local function test()
   print"done"
 end
 
-
+Loader.installExtraFunctions()
 
 -- test()
 return {

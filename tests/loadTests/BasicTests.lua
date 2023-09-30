@@ -131,4 +131,31 @@ do
   test:var_eq(3, 7)
 end
 
+---------
+--next --
+---------
+do
+  --given
+  local src = [=[
+    t = {10,20, foo="bar"}
+    a,b = next(t)
+    c,d = next(t,a)
+    e,f = next(t,c)
+    return a,b,c,d,e,f
+  ]=]
+  local env = Env:new()
+  local libs = testUtils.libs()
+  local common = testUtils.common(env)
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local test = testUtils.codeTest( tester, "next", env, libs, src )
+  
+  test:var_eq(1, 1)
+  test:var_eq(2, 10)
+  test:var_eq(3, 2)
+  test:var_eq(4, 20)
+  test:var_eq(5, "foo")
+  test:var_eq(6, "bar")
+end
+
 return tester
