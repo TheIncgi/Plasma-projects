@@ -6,21 +6,21 @@ package.path = package.path..";./tests/loadTests/?.lua"
 HIDE_PASS = false
 
 local tests = {
-  -- "BasicTests",
-  -- "FunctionTests",
-  -- "OrderOfOps",
-  -- "StringModule",
-  -- "MathModule",
+  "BasicTests",
+  "FunctionTests",
+  "OrderOfOps",
+  "StringModule",
+  "MathModule",
   "BasicTable",
-  -- "TableModule",
-  -- "Bit32Module",
-  -- "CoroutineModule",
-  -- "Metatable",
-  -- "ShortCircuiting",
-  -- "LoadTests",
-  -- "_GTests",
-  -- "ErrorHandlingTests",
-  -- "DebugTests",
+  "TableModule",
+  "Bit32Module",
+  "CoroutineModule",
+  "Metatable",
+  "ShortCircuiting",
+  "LoadTests",
+  "_GTests",
+  "ErrorHandlingTests",
+  "DebugTests",
 }
 
 local totalPassed = 0

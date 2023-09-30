@@ -708,6 +708,8 @@ function Loader.cleanupTokens( tokens )
               and (not tokens[index-1] or tokens[index-1].value ~= "]")
               and (not tokens[index-1] or t.type~="var" or tokens[index-1].value~=".")
               and exp[1].type == "var"
+               or (not tokens[index-1] or tokens[index-1].value==",")
+               or (not tokens[index-1] or tokens[index-1].type == "keyword")
 
             local split = {infix = {place = exp, index = {}}}
             if #exp > 1 then
@@ -719,14 +721,24 @@ function Loader.cleanupTokens( tokens )
                 table.insert(split.infix.index, 1, t)
                 if (t.index or t.value == ".") and open == 0 then break end
               end
-              if split.infix.index[1].value == "." then
-                table.remove(split.infix.index, 1)
-                split.infix.index[1] = Loader._val( split.infix.index[1].value )
-              elseif split.infix.index[1].value == "[" then
-                table.remove(split.infix.index, 1)
-                table.remove(split.infix.index)
+              if #split.infix.place > 0 then --{...,[3]=4} index for table creation
+                if split.infix.index[1].value == "." then
+                  table.remove(split.infix.index, 1)
+                  split.infix.index[1] = Loader._val( split.infix.index[1].value )
+                elseif split.infix.index[1].value == "[" then
+                  table.remove(split.infix.index, 1)
+                  table.remove(split.infix.index)
+                end
+                table.insert(newToken.value, 1, split)
+              else
+                table.remove(tokens, index)
+                
+                for i,t in ipairs(split.infix.index) do
+                  table.insert(tokens, index, t)
+                  index = index + 1
+                end
+                table.insert(tokens, index, {type="op", value = "=", line=line, blockLevel=blockLevel})
               end
-              table.insert(newToken.value, 1, split)
             else
               table.insert(newToken.value, 1, exp[1])
             end
