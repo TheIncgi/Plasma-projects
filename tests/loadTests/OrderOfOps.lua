@@ -39,7 +39,7 @@ do
   local libs = testUtils.libs()
   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
   
-  local setup = [=[
+  local template = [=[
     t = {}
     
     function t.add( x, y )
@@ -49,16 +49,13 @@ do
     t.inner = {
       value = 100
     }
+
+    return %s
   ]=]
   
   for expression, expected in pairs( tests ) do
-    local test = tester:add("Order: "..expression, env, function()
-      local scope = testUtils.newScope( Scope )
-      local fullExpression = "return "..expression
-      testUtils.run( setup, scope, Loader, Async )
-      local results = testUtils.run( fullExpression, scope, Loader, Async ).varargs
-      return results[1].value
-    end)
+    src = template:format( expression )
+    local test = testUtils.codeTest(tester, "Order: "..expression, env, libs, src)
 
     test:var_eq(1, expected, "Expression "..expression.." expected a value of "..tostring(expected)..", but got $1")
   end

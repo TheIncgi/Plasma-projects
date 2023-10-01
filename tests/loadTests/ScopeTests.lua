@@ -12,9 +12,9 @@ local tester = Tester:new()
 -- Tests
 -----------------------------------------------------------------
 
---------------
--- table [] --
---------------
+--------------------
+-- function param --
+--------------------
 do
   local env = Env:new()
   local common = testUtils.common(env)
@@ -22,65 +22,64 @@ do
   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
 
   local src = [=[
-    local t = { "ok" }
-    return t[1]
-  ]=]
-
-  local test = testUtils.codeTest(tester, "basic index by []", env, libs, src)
-
-  test:var_eq(1, "ok")
-end
-
--------------
--- [index] --
--------------
-do
-  local env = Env:new()
-  local common = testUtils.common(env)
-  local libs = testUtils.libs()
-  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
-
-  local src = [=[
-    local a, b = "h", "ello"
-    local t = {
-        1000,
-        ["foo bar"] = 15,
-        cow = 10,
-        [a..b] = true
-    }
-
-    return
-        t[1], t["foo bar"], t["cow"], t["hello"]
-  ]=]
-
-  local test = testUtils.codeTest(tester, "multiple index by []", env, libs, src)
-
-  test:var_eq(1, 1000, "value 1 expected 1000, got $1")
-  test:var_eq(2, 15, "value 2 expected 15, got $1")
-  test:var_eq(3, 10, "value 3 expected 10, got $1")
-  test:var_eq(4, true, "value 4 expected true, got $1")
-end
-
------------
--- {...} --
------------
-do
-  local env = Env:new()
-  local common = testUtils.common(env)
-  local libs = testUtils.libs()
-  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
-
-  local src = [=[
-    function test(...)
-      return {...}
+    local function paramTest( x )
+      x = x
     end
 
-    return #test(1,2,3)
+    paramTest( 10 )
+
+    return x, _G.x
   ]=]
 
-  local test = testUtils.codeTest(tester, "{...}", env, libs, src)
+  local test = testUtils.codeTest(tester, "function param", env, libs, src)
 
-  test:var_eq(1, 3)
+  test:var_eq(1, nil)
+  test:var_eq(2, nil)
+end
+
+---------------
+-- nil local --
+---------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local function paramTest( x )
+      x = x or 11
+    end
+
+    paramTest()
+
+    return x, _G.x
+  ]=]
+
+  local test = testUtils.codeTest(tester, "nil local", env, libs, src)
+
+  test:var_eq(1, nil)
+  test:var_eq(2, nil)
+end
+
+
+--------------------
+-- function param --
+--------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    table.serialize( _G )
+    return visited
+  ]=]
+
+  local test = testUtils.codeTest(tester, "table.serialize", env, libs, src)
+
+  test:var_eq(1, nil)
 end
 
 return tester

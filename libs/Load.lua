@@ -246,9 +246,15 @@ function Async.loop( syncTask )
             e = threads[threadOnCall][1]
             if e.errorHandler then
               if type(e.errorHandler) == "function" then
-                e.errorHandler( value )
+                local handlerOk, err = pcall(e.errorHandler, value )
+                if handlerOk then
+                  break
+                else
+                  value = err.."\ncaused by "..value
+                end
+              else
+                break
               end
-              break
             end
             Async.removeTask( e )
           end
@@ -384,6 +390,7 @@ local RETURN = Async.RETURN
 Loader.keywords = {
   -- ["and"]      = true,
   ["break"]    = true,
+  ["continue"] = true,
   ["do"]       = true,
   ["false"]    = true,
   ["for"]      = true,
@@ -408,7 +415,7 @@ Loader.keywords = {
 local SINGLE_QUOTE = string.char(39)
 local DOUBLE_QUOTE = string.char(34)
 Loader._patterns = {
-	str = { "^'[^'\n]*'$", '^"[^"\n]*"$' },
+	string = { "^'[^'\n]*'$", '^"[^"\n]*"$' },
 	num = { 
 		int="^[0-9]+$", 
 		float="^[0-9]*%.[0-9]*$",
@@ -511,7 +518,7 @@ function Loader._chunkType( text )
     if longQuote then
       local endQuote = longQuote:gsub("%[","]")
       if text:sub(-#longQuote) == endQuote then
-        return "str"
+        return "string"
       end
       return not text:find(endQuote,1,true) and "unfinished_str" or false
     end
@@ -532,10 +539,10 @@ function Loader._chunkType( text )
   elseif text == "0x" or text == "0b" then
     return "num" --incomplete
   end
-	for _, name in ipairs{ "op","num","var","str" } do
+	for _, name in ipairs{ "op","num","var","string" } do
 		local group = Loader._patterns[ name ]
 		local txt =  text
-		if name == "str" then
+		if name == "string" then
 			--hide escaped quotes for testing
 			txt = txt:gsub("\\'",""):gsub('\\"',"")
 		end
@@ -586,7 +593,7 @@ function Loader.tokenize( src )
       end
       if not chunkType2
         and (chunk2:sub(1,1) == '"' or chunk2:sub(1,1) == "'")
-        and Loader._chunkType(chunk or "")~="str" then
+        and Loader._chunkType(chunk or "")~="string" then
           chunkType2 ="unfinished_str"
       end
       if not chunkType2 then --whitespace, end token
@@ -840,7 +847,7 @@ function Loader.cleanupTokens( tokens )
           blockLevel = blockLevel-1
           infoToken.blockLevel = blockLevel
         end
-      elseif tokenType=="str" then
+      elseif tokenType=="string" then
         --remove quotes
         if token:match([=[^["']]=]) then
           infoToken.value = token:sub(2,-2)
@@ -914,7 +921,7 @@ function Loader._readTable( tokens, start )
           end
           index = nextIndex +1
         elseif token.type == "var" and tokens[index+1] and tokens[index+1].value == "=" then
-          key = {{type="str", value = token.value}}
+          key = {{type="string", value = token.value}}
           index = index + 2
         elseif token.type == "assignment-set" then
           for i = 1, #token.value -1 do
@@ -925,7 +932,7 @@ function Loader._readTable( tokens, start )
             local v = infix
             table.insert( tableInit, {line = line, infix = {key=k, value=v}} )
           end
-          key = {{type="str", value = token.value[ #token.value ].value}}
+          key = {{type="string", value = token.value[ #token.value ].value}}
           index = index + 1
         else
           N = N + 1
@@ -1255,6 +1262,18 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
         
 
         --instructions with expresssions
+        elseif token.value == "break" then
+          table.insert(instructions, {
+            op = "break",
+            line = token.line,
+            index = #instructions+1
+          })
+        elseif token.value == "continue" then
+          table.insert(instructions, {
+            op = "continue",
+            line = token.line,
+            index = #instructions+1
+          })
         elseif token.value == "do" then
           table.insert(instructions, {
             op = "createScope",
@@ -1818,21 +1837,22 @@ function Loader.callFunc( func, args, callback )
           )
           
         else
-          
+          local callEnv
           Async.insertTasks(
             {
               label = "callFunc-setArgs",
               func = function()
                 local named = 0
+                callEnv = Scope:new(func.env.name or ("function "..func.name) or "function [?]", func.line, func.env, 1)
                 for i=1,#func.args do --TODO feature trailing named args? (a, b, ..., c)
                   if func.args[i] == "..." then break end
-                  func.env:setAsync(true,func.args[i], fArgs[i] or Loader.constants["nil"])
+                  callEnv:setAsync(true,func.args[i], fArgs[i] or Loader.constants["nil"])
                   named = i
                 end
                 if func.args[named+1] == "..." then
-                  func.env:setVarargs(Loader._varargs( table.unpack(fArgs, named+1) ))
+                  callEnv:setVarargs(Loader._varargs( table.unpack(fArgs, named+1) ))
                 else
-                  func.env:setVarargs(nil)
+                  callEnv:setVarargs(nil)
                 end
                 return true
               end
@@ -1840,7 +1860,7 @@ function Loader.callFunc( func, args, callback )
               label = "callFunc-execute",
               func = function()
                 local nargs = #func.args - (func.args[#func.args]=="..." and 1 or 0)
-                Loader.execute(func.instructions, func.env, nargs, table.unpack(fArgs))
+                Loader.execute(func.instructions, callEnv, nargs, table.unpack(fArgs))
                 return true
               end
             },{
@@ -1869,9 +1889,9 @@ function Loader.newTable()
   return val, newTable, indexer
 end
 
-function Loader.assignToTable( tableValue, keyValue, valueValue )
-  tableValue.value[keyValue] = valueValue
-  if valueValue == nil or valueValue.type == "nil" then
+function Loader.assignToTable( tableValue, keyValue, valueValue, allowNilValue )
+  tableValue.value[keyValue] = (valueValue == nil or (valueValue.type == "nil" and allowNilValue) or valueValue.type~="nil") and valueValue
+  if valueValue == nil or (valueValue.type == "nil" and not allowNilValue) then
     Loader.tableIndexes[tableValue.value][keyValue.value] = nil
   else
     Loader.tableIndexes[tableValue.value][keyValue.value] = keyValue
@@ -1890,31 +1910,31 @@ function Loader.getTableIndex( tableValue )
 end
 
 --async
-function Loader.assignToTableWithEvents( tableValue, keyValue, valueValue )
+function Loader.assignToTableWithEvents( tableValue, keyValue, valueValue, allowNilValue )
   if not tableValue then error("expected tableValue",2 ) end
   if not keyValue then error("expected keyValue",2 ) end
   --if not valueValue then error("expected valueValue",2 ) end
   if valueValue and valueValue.varargs then
     valueValue = valueValue.value
   end
-  if valueValue and valueValue.type == "nil" then
+  if valueValue and valueValue.type == "nil" and not allowNilValue then
     valueValue = nil
   end
   local index = Loader.getTableIndex( tableValue )
-  local k = index[ keyValue.value ]
+  local k = index[ keyValue.value ] 
   local v = tableValue.value[ keyValue ] or tableValue.value[ k ]
-
+  k = k or keyValue
   --exists
   if v then
-    Loader.assignToTable( tableValue, keyValue, valueValue )
+    Loader.assignToTable( tableValue, k, valueValue, allowNilValue )
     return
   end
   
   local __newindex = Loader.getMetaEvent( tableValue, "__newindex" )
   if __newindex.type == "function" then
-    Loader.callFunc( __newindex, Loader._varargs( tableValue, keyValue, valueValue ), function() end )
+    Loader.callFunc( __newindex, Loader._varargs( tableValue, k, valueValue ), function() end )
   else
-    Loader.assignToTable( tableValue, keyValue, valueValue )
+    Loader.assignToTable( tableValue, k, valueValue, allowNilValue )
   end
 end
 
@@ -1934,7 +1954,7 @@ function Loader.indexTable( tableValue, keyValue )
   local index = Loader.getTableIndex( tableValue )
   local k = index[ keyValue.value ]
   local v = tableValue.value[keyValue] or tableValue.value[ k ]
-  return v or Loader.constants["nil"]
+  return v or Loader.constants["nil"], v
 end
 
 --async
@@ -2200,8 +2220,8 @@ function Loader.eval( postfix, scope, line )
 
         elseif token.index then
           popAsync(stack, scope, line, false, 2, function(a, b)
-            if a.type == "str" then
-              a = scope:getRootScope():get("string")
+            if a.type == "string" then
+              a = scope:getRootScope():getRaw("string")
             end
             if a.type ~= "table" then
               error("attempt to index "..a.type.." on line "..token.line)
@@ -2217,7 +2237,7 @@ function Loader.eval( postfix, scope, line )
         elseif token.value == "." then
           local b = table.remove(stack)
           popAsync(stack, scope, line, false, 1, function(a)
-            if a.type == "str" then
+            if a.type == "string" then
               a = scope:getRootScope():get("string")
             end
             if a.type ~= "table" then
@@ -2237,7 +2257,7 @@ function Loader.eval( postfix, scope, line )
             Async.insertTasks({
               label = "eval - : str",
               func = function()
-                if a.type == "str" then
+                if a.type == "string" then
                   Async.insertTasks({
                     label = "eval - : str - get string", func = function()
                       scope:getRootScope():getAsync("string")
@@ -2808,7 +2828,7 @@ function Loader.eval( postfix, scope, line )
         Loader._initalizeTable( token, scope, line )
       elseif token.type == "keyword" and token.op == "function" then
           local locals = scope--:captureLocals()
-          local fenv = Scope:new("fenv: "..token.name, token.line, scope, index, locals)
+          local fenv = Scope:new("fenv: "..token.name, token.line, scope, index)
           local fval = {
             env = fenv,
             instructions = token.instructions,
@@ -2892,7 +2912,7 @@ function Loader.tostring( x )
       Loader.callFunc( event, x, function( str ) --varargs result
         Async.insertTasks(Async.RETURN("tostring metaevent result", {str.value} ))
       end)
-    elseif event and event.type == "str" then
+    elseif event and event.type == "string" then
       return event
     else
       return Loader._val(tostring( x.value ))
@@ -3000,7 +3020,7 @@ function Scope:setRaw(isLocal, name, value)
     error("scope:setRaw expects wrapped value or nil",2)
   end
   if isLocal or self:hasKey(name) or not self.parent then
-    Loader.assignToTable(self.tableValue, Loader._val(name), value)
+    Loader.assignToTable(self.tableValue, Loader._val(name), value, true)
   else
     self.parent:setRaw(isLocal, name, value)
   end
@@ -3033,8 +3053,8 @@ function Scope:setAsync(isLocal, name, value)
       label = "Scope:setAsync",
       func = function()
         local nameValue = Loader._val(name)
-        if isLocal or Loader.indexTable( self.tableValue, nameValue ).type~="nil" or not self.parent then
-          Loader.assignToTableWithEvents( self.tableValue, nameValue, value)
+        if isLocal or select(2,Loader.indexTable( self.tableValue, nameValue )) ~= nil or not self.parent then
+          Loader.assignToTableWithEvents( self.tableValue, nameValue, value, true)
         else
           self.parent:setAsync(isLocal, name, value)
         end
@@ -3224,14 +3244,23 @@ function Scope:addGlobals()
         Async.insertTasks(Async.RETURN("__ipairs result", results.varargs))
       end)
     else
-      local indexer = Loader.getTableIndex( tbl )
-      local gen, _, start = ipairs(indexer)
-      local wrapGen = Loader._val(function(tbl, index, ...)
-        local nextIndex, nextWrappedIndex = gen( indexer, index )
-        return nextWrappedIndex, tbl[nextWrappedIndex]
+      -- local gen, _, start = ipairs(indexer)
+      local start = 0
+      local gen = Loader._val(function(t, i)
+        local indexer = Loader.getTableIndex( t )
+        i = i.value + 1
+        local v = tbl.value[indexer[i]]
+        if indexer[i] and v and v.type ~= "nil" then
+          return indexer[i], v
+        end
+        return --nothing
       end)
-      wrapGen.unpacker = Loader.UNPACKER
-      return wrapGen, tbl, Loader._val(start)
+      -- local wrapGen = Loader._val(function(tbl, index, ...)
+      --   local nextIndex, nextWrappedIndex = gen( indexer, index )
+      --   return nextWrappedIndex, tbl[nextWrappedIndex]
+      -- end)
+      -- wrapGen.unpacker = Loader.UNPACKER
+      return gen, tbl, Loader._val(start)
     end
   end, false, false )
 
@@ -3327,7 +3356,7 @@ function Scope:addGlobals()
     local fArgs = Loader._varargs(...)
     local values
     Async.insertTasks({
-      label = "pcall-execute",
+      label = "xpcall-execute",
       func = function()
         Loader.callFunc( sFunc, fArgs, function(result)
           values = {
@@ -3338,7 +3367,7 @@ function Scope:addGlobals()
         return true
       end,
       },{
-        label = "pcall-results",
+        label = "xpcall-results",
         func = function(...)
           return {values or {...}}
         end,
@@ -3347,7 +3376,8 @@ function Scope:addGlobals()
             {
               label = "xpcall-handle error",
               func = function()
-                fArgs = Loader._varargs(msg, sFunc.env:captureLocals())
+                local scope = Async.getScope()
+                fArgs = Loader._varargs(msg, scope:captureLocals())
                 Loader.callFunc(handler, fArgs, function(result)
                   values = {
                     Loader.constants["false"],
@@ -4084,6 +4114,25 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
           return --continue
         end
       elseif inst.op == "break" then
+        local t = top
+        while not t.isLoop and t.parent do
+          t = t.parent
+        end
+        if not t.isLoop then
+          error("break statment is not in a loop")
+        end
+        index = t.stop.index + 1
+        return --continue
+      elseif inst.op == "continue" then
+        local t = top
+        while not t.isLoop and t.parent do
+          t = t.parent
+        end
+        if not t.isLoop then
+          error("break statment is not in a loop")
+        end
+        index = t.stop.index --to end/until, loop check there
+        return --continue
       elseif inst.op == "while" then
         top.isLoop = true
         top.start = inst
@@ -4307,7 +4356,7 @@ function Loader.installExtraFunctions()
       end ) --sortFunc is optional
       for i,v in ipairs( tbl ) do
         if #out > 1 then table.insert( out, ', ' ) end
-        table.insert( out, table.serialize(v) )
+        table.insert( out, table.serialize(v, sortFunc, visited) )
       end
       for i,k in ipairs( keys ) do
         if type(k)~="number" then
@@ -4316,7 +4365,7 @@ function Loader.installExtraFunctions()
           if #out > 1 then table.insert( out, ', ' ) end
           table.insert( out, k )
           table.insert( out, ' = ' )
-          table.insert( out,  table.serialize(v, sortFunc))
+          table.insert( out,  table.serialize(v, sortFunc, visited))
         end
       end
       table.insert(out,"}")
@@ -4394,6 +4443,7 @@ function setup()
   Plasma.scope = Scope:new("PLASMA",1,nil,1)
   Plasma.scope:addGlobals()
   Plasma.scope:addPlasmaGlobals()
+  Loader.installExtraFunctions()
 end
 
 function loop()
@@ -4487,12 +4537,14 @@ local function test()
   print"done"
 end
 
-Loader.installExtraFunctions()
+
 
 -- test()
 return {
   Loader = Loader,
   Async = Async,
   Scope = Scope,
-  Net = Net
+  Net = Net,
+  Plasma = Plasma,
+  setup = setup,
 }

@@ -28,11 +28,10 @@ do
   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
 
   local printProxy = env:proxy("print", function() end)
+
   --test code
-  tester:add("executes hello world", env, function()
-    local scope = testUtils.newScope(Scope)
-    testUtils.run( src, scope, Loader, Async )
-  end)
+  local test = testUtils.codeTest(tester, "print hello world", env, libs, src)
+  
   --expect
   printProxy{ "Hello world!" }.exact()
 end

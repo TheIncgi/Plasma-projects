@@ -15,13 +15,14 @@ https://github.com/users/TheIncgi/projects/2/views/1
  - Auto pauses each tick, adjustable # of ops per tick (based on internal loops mostly) 
  - When doing formatting like `("%2d:%d"):format(hour, min)` the first `()` can be skipped like this:
    `"%2d:%d":format(hour, min)`
+ - Support for `[[foo]]`/`[=[foo]=]` style strings
+ - stack trace
+ - `continue` in loops
 
 ### Planned features
  - Support for `+=` `-=` `/=` `*=` `~=`, `<<=`, `|=`, `&=`, `>>=`, `>>>=`
- - Support for `[=[foo]=]` style strings (might have already done this one..)
  - Custom searchers/loaders
- - debug library
- - stack trace
+ - debug library (partially implemented)
 
 ## Usage
 [This is the file](https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua)\

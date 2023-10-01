@@ -38,8 +38,86 @@ do
   for i = 1, 3 do
     printProxy{tostring(i)}:exact()
   end
-  
-  
+end
+
+----------------
+-- for ipairs --
+----------------
+do
+  --given
+  local src = [=[
+    t = {11,12,13,e="nope",f="don't"}
+    i = 0
+    for a,b in ipairs( t ) do
+      print(a,b)
+      i = i + 1
+    end
+    return i
+  ]=]
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  --test code
+  local test = testUtils.codeTest(tester, "for ipairs", env, libs, src)
+
+  --expect
+  local printProxy = common.printProxy
+  for i = 1, 3 do
+    printProxy{tostring(i), tostring(i+10)}:exact()
+  end
+  test:var_eq(1, 3)
+end
+
+---------------
+-- for break --
+---------------
+do
+  --given
+  local src = [=[
+    i = 0
+    for j=1,10 do
+      i = i + 1
+      break
+    end
+    return i
+  ]=]
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  --test code
+  local test = testUtils.codeTest(tester, "for break", env, libs, src)
+
+  --expect
+  test:var_eq(1, 1)
+end
+
+------------------
+-- for continue --
+------------------
+do
+  --given
+  local src = [=[
+    i = 0
+    for j=1,10 do
+      if j < 5 then continue end
+      i = i + 1
+    end
+    return i
+  ]=]
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  --test code
+  local test = testUtils.codeTest(tester, "for continue", env, libs, src)
+
+  --expect
+  test:var_eq(1, 6)
 end
 
 

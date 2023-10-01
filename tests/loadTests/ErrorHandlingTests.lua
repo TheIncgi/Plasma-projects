@@ -147,7 +147,7 @@ do
 
   local src = [=[
     local function unsafe( y )
-      return x + 2
+      return x + 2 --x not y
     end
 
     local function handler(msg, env)
