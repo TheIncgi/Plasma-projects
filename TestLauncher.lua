@@ -23,6 +23,7 @@ local tests = {
   "DebugTests",
   "LoopTests",
   "ScopeTests",
+  "ClassTest",
 }
 
 local totalPassed = 0
