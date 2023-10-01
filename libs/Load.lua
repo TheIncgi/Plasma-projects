@@ -390,6 +390,7 @@ local RETURN = Async.RETURN
 Loader.keywords = {
   -- ["and"]      = true,
   ["break"]    = true,
+  ["continue"] = true,
   ["do"]       = true,
   ["false"]    = true,
   ["for"]      = true,
@@ -1261,6 +1262,18 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
         
 
         --instructions with expresssions
+        elseif token.value == "break" then
+          table.insert(instructions, {
+            op = "break",
+            line = token.line,
+            index = #instructions+1
+          })
+        elseif token.value == "continue" then
+          table.insert(instructions, {
+            op = "continue",
+            line = token.line,
+            index = #instructions+1
+          })
         elseif token.value == "do" then
           table.insert(instructions, {
             op = "createScope",
@@ -4101,6 +4114,25 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
           return --continue
         end
       elseif inst.op == "break" then
+        local t = top
+        while not t.isLoop and t.parent do
+          t = t.parent
+        end
+        if not t.isLoop then
+          error("break statment is not in a loop")
+        end
+        index = t.stop.index + 1
+        return --continue
+      elseif inst.op == "continue" then
+        local t = top
+        while not t.isLoop and t.parent do
+          t = t.parent
+        end
+        if not t.isLoop then
+          error("break statment is not in a loop")
+        end
+        index = t.stop.index --to end/until, loop check there
+        return --continue
       elseif inst.op == "while" then
         top.isLoop = true
         top.start = inst

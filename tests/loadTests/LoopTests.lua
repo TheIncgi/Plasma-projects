@@ -70,5 +70,55 @@ do
   test:var_eq(1, 3)
 end
 
+---------------
+-- for break --
+---------------
+do
+  --given
+  local src = [=[
+    i = 0
+    for j=1,10 do
+      i = i + 1
+      break
+    end
+    return i
+  ]=]
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  --test code
+  local test = testUtils.codeTest(tester, "for break", env, libs, src)
+
+  --expect
+  test:var_eq(1, 1)
+end
+
+---------------
+-- for break --
+---------------
+do
+  --given
+  local src = [=[
+    i = 0
+    for j=1,10 do
+      if j < 5 then continue end
+      i = i + 1
+    end
+    return i
+  ]=]
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  --test code
+  local test = testUtils.codeTest(tester, "for break", env, libs, src)
+
+  --expect
+  test:var_eq(1, 6)
+end
+
 
 return tester
