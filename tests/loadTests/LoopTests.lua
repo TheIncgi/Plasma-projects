@@ -38,8 +38,32 @@ do
   for i = 1, 3 do
     printProxy{tostring(i)}:exact()
   end
-  
-  
+end
+
+----------------
+-- for ipairs --
+----------------
+do
+  --given
+  local src = [=[
+    t = {11,12,13,e="nope",f="don't"}
+    for a,b in ipairs( t ) do
+      print(a,b)
+    end
+  ]=]
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  --test code
+  local test = testUtils.codeTest(tester, "for ipairs", env, libs, src)
+
+  --expect
+  local printProxy = common.printProxy
+  for i = 1, 3 do
+    printProxy{tostring(i), tostring(i+10)}:exact()
+  end
 end
 
 

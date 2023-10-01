@@ -408,7 +408,7 @@ Loader.keywords = {
 local SINGLE_QUOTE = string.char(39)
 local DOUBLE_QUOTE = string.char(34)
 Loader._patterns = {
-	str = { "^'[^'\n]*'$", '^"[^"\n]*"$' },
+	string = { "^'[^'\n]*'$", '^"[^"\n]*"$' },
 	num = { 
 		int="^[0-9]+$", 
 		float="^[0-9]*%.[0-9]*$",
@@ -511,7 +511,7 @@ function Loader._chunkType( text )
     if longQuote then
       local endQuote = longQuote:gsub("%[","]")
       if text:sub(-#longQuote) == endQuote then
-        return "str"
+        return "string"
       end
       return not text:find(endQuote,1,true) and "unfinished_str" or false
     end
@@ -532,10 +532,10 @@ function Loader._chunkType( text )
   elseif text == "0x" or text == "0b" then
     return "num" --incomplete
   end
-	for _, name in ipairs{ "op","num","var","str" } do
+	for _, name in ipairs{ "op","num","var","string" } do
 		local group = Loader._patterns[ name ]
 		local txt =  text
-		if name == "str" then
+		if name == "string" then
 			--hide escaped quotes for testing
 			txt = txt:gsub("\\'",""):gsub('\\"',"")
 		end
@@ -586,7 +586,7 @@ function Loader.tokenize( src )
       end
       if not chunkType2
         and (chunk2:sub(1,1) == '"' or chunk2:sub(1,1) == "'")
-        and Loader._chunkType(chunk or "")~="str" then
+        and Loader._chunkType(chunk or "")~="string" then
           chunkType2 ="unfinished_str"
       end
       if not chunkType2 then --whitespace, end token
@@ -840,7 +840,7 @@ function Loader.cleanupTokens( tokens )
           blockLevel = blockLevel-1
           infoToken.blockLevel = blockLevel
         end
-      elseif tokenType=="str" then
+      elseif tokenType=="string" then
         --remove quotes
         if token:match([=[^["']]=]) then
           infoToken.value = token:sub(2,-2)
@@ -914,7 +914,7 @@ function Loader._readTable( tokens, start )
           end
           index = nextIndex +1
         elseif token.type == "var" and tokens[index+1] and tokens[index+1].value == "=" then
-          key = {{type="str", value = token.value}}
+          key = {{type="string", value = token.value}}
           index = index + 2
         elseif token.type == "assignment-set" then
           for i = 1, #token.value -1 do
@@ -925,7 +925,7 @@ function Loader._readTable( tokens, start )
             local v = infix
             table.insert( tableInit, {line = line, infix = {key=k, value=v}} )
           end
-          key = {{type="str", value = token.value[ #token.value ].value}}
+          key = {{type="string", value = token.value[ #token.value ].value}}
           index = index + 1
         else
           N = N + 1
@@ -2200,8 +2200,8 @@ function Loader.eval( postfix, scope, line )
 
         elseif token.index then
           popAsync(stack, scope, line, false, 2, function(a, b)
-            if a.type == "str" then
-              a = scope:getRootScope():get("string")
+            if a.type == "string" then
+              a = scope:getRootScope():getRaw("string")
             end
             if a.type ~= "table" then
               error("attempt to index "..a.type.." on line "..token.line)
@@ -2217,7 +2217,7 @@ function Loader.eval( postfix, scope, line )
         elseif token.value == "." then
           local b = table.remove(stack)
           popAsync(stack, scope, line, false, 1, function(a)
-            if a.type == "str" then
+            if a.type == "string" then
               a = scope:getRootScope():get("string")
             end
             if a.type ~= "table" then
@@ -2237,7 +2237,7 @@ function Loader.eval( postfix, scope, line )
             Async.insertTasks({
               label = "eval - : str",
               func = function()
-                if a.type == "str" then
+                if a.type == "string" then
                   Async.insertTasks({
                     label = "eval - : str - get string", func = function()
                       scope:getRootScope():getAsync("string")
@@ -2892,7 +2892,7 @@ function Loader.tostring( x )
       Loader.callFunc( event, x, function( str ) --varargs result
         Async.insertTasks(Async.RETURN("tostring metaevent result", {str.value} ))
       end)
-    elseif event and event.type == "str" then
+    elseif event and event.type == "string" then
       return event
     else
       return Loader._val(tostring( x.value ))
@@ -3224,14 +3224,22 @@ function Scope:addGlobals()
         Async.insertTasks(Async.RETURN("__ipairs result", results.varargs))
       end)
     else
-      local indexer = Loader.getTableIndex( tbl )
-      local gen, _, start = ipairs(indexer)
-      local wrapGen = Loader._val(function(tbl, index, ...)
-        local nextIndex, nextWrappedIndex = gen( indexer, index )
-        return nextWrappedIndex, tbl[nextWrappedIndex]
+      -- local gen, _, start = ipairs(indexer)
+      local start = 0
+      local gen = Loader._val(function(t, i)
+        local indexer = Loader.getTableIndex( t )
+        i = i.value + 1
+        if indexer[i] then
+          return Loader._val(i), tbl.value[indexer[i]]
+        end
+        return --nothing
       end)
-      wrapGen.unpacker = Loader.UNPACKER
-      return wrapGen, tbl, Loader._val(start)
+      -- local wrapGen = Loader._val(function(tbl, index, ...)
+      --   local nextIndex, nextWrappedIndex = gen( indexer, index )
+      --   return nextWrappedIndex, tbl[nextWrappedIndex]
+      -- end)
+      -- wrapGen.unpacker = Loader.UNPACKER
+      return gen, tbl, Loader._val(start)
     end
   end, false, false )
 
