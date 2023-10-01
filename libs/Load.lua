@@ -3303,7 +3303,15 @@ function Scope:addGlobals()
         if read_var"tick" - now >= duration then
           return true
         end
-        Async.yield = true
+        if Async.activeThread == 1 then
+          Async.yield = true
+        else
+          --yield behavior
+          Async.popThread()
+          Async.insertTasks( --in caller of resume's thread
+            Async.RETURN( "yield-return values", {} ) --stack of values 
+          )
+        end
         return false
       end
     })
