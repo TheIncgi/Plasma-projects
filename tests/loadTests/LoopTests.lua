@@ -95,9 +95,9 @@ do
   test:var_eq(1, 1)
 end
 
----------------
--- for break --
----------------
+------------------
+-- for continue --
+------------------
 do
   --given
   local src = [=[
@@ -114,7 +114,7 @@ do
   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
 
   --test code
-  local test = testUtils.codeTest(tester, "for break", env, libs, src)
+  local test = testUtils.codeTest(tester, "for continue", env, libs, src)
 
   --expect
   test:var_eq(1, 6)
