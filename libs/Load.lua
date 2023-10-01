@@ -87,6 +87,34 @@ function Async.insertTasks( ... )
 	return t[ #t ] 
 end
 
+--insert random tasks safely so existing tasks flow normally
+function Async.interrupt(...)
+  if not Async.threads[activeThread] or #Async.threads[activeThread] == 0 then
+    return Async.insertTasks(...)
+  end
+  local values
+  local queue = {
+    {
+      label = "interrupt-catch values",
+      func = function(...)
+        values = {...}
+        return true
+      end
+    },
+    ...
+  }
+  table.insert(queue, {
+    label = "interrupt-put back values",
+    func = function()
+      return values
+    end
+  })
+  return Async.insertTasks(
+    table.unpack(queue)
+  )
+end
+interrupt = Async.interrupt
+
 function Async.removeTask( func, threadID )
   local tasks = Async.threads[ threadID or  Async.activeThread ]
   for i=1, #tasks do
