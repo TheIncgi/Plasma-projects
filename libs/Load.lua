@@ -87,6 +87,34 @@ function Async.insertTasks( ... )
 	return t[ #t ] 
 end
 
+--insert random tasks safely so existing tasks flow normally
+function Async.interrupt(...)
+  if not Async.threads[activeThread] or #Async.threads[activeThread] == 0 then
+    return Async.insertTasks(...)
+  end
+  local values
+  local queue = {
+    {
+      label = "interrupt-catch values",
+      func = function(...)
+        values = {...}
+        return true
+      end
+    },
+    ...
+  }
+  table.insert(queue, {
+    label = "interrupt-put back values",
+    func = function()
+      return values
+    end
+  })
+  return Async.insertTasks(
+    table.unpack(queue)
+  )
+end
+interrupt = Async.interrupt
+
 function Async.removeTask( func, threadID )
   local tasks = Async.threads[ threadID or  Async.activeThread ]
   for i=1, #tasks do
@@ -3303,7 +3331,15 @@ function Scope:addGlobals()
         if read_var"tick" - now >= duration then
           return true
         end
-        Async.yield = true
+        if Async.activeThread == 1 then
+          Async.yield = true
+        else
+          --yield behavior
+          Async.popThread()
+          Async.insertTasks( --in caller of resume's thread
+            Async.RETURN( "yield-return values", {} ) --stack of values 
+          )
+        end
         return false
       end
     })
@@ -3527,8 +3563,8 @@ function Scope:addGlobals()
     Async.pushAndSetThread( id )
     Async.insertTasks(
       {
-        label = "coroutine-create", func = function( ... ) --receives from `resume` call
-          Loader.callFunc( sFunc, Loader._varargs(...), function( result )
+        label = "coroutine-create", func = function( args ) --receives from `resume` call
+          Loader.callFunc( sFunc, Loader._varargs(table.unpack(args)), function( result )
             if result then
               Async.insertTasks( Async.RETURN( "create-return to resume", result.varargs ) ) --pass to resume
             else
@@ -3562,7 +3598,7 @@ function Scope:addGlobals()
     
     Async.pushAndSetThread( threadID.value )
     Async.insertTasks( --in thread's tasks
-      Async.RETURN( "resume-pass args", ... ) --pass args to coroutine
+      Async.RETURN( "resume-pass args", {...} ) --pass args to coroutine
     )
   end, false, false))
 
