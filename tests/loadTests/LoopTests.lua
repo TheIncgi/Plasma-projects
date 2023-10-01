@@ -47,9 +47,12 @@ do
   --given
   local src = [=[
     t = {11,12,13,e="nope",f="don't"}
+    i = 0
     for a,b in ipairs( t ) do
       print(a,b)
+      i = i + 1
     end
+    return i
   ]=]
   local env = Env:new()
   local common = testUtils.common(env)
@@ -64,6 +67,7 @@ do
   for i = 1, 3 do
     printProxy{tostring(i), tostring(i+10)}:exact()
   end
+  test:var_eq(1, 3)
 end
 
 

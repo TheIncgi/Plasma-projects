@@ -37,6 +37,31 @@ do
   test:var_eq(2, nil)
 end
 
+---------------
+-- nil local --
+---------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local function paramTest( x )
+      x = x or 11
+    end
+
+    paramTest()
+
+    return x, _G.x
+  ]=]
+
+  local test = testUtils.codeTest(tester, "nil local", env, libs, src)
+
+  test:var_eq(1, nil)
+  test:var_eq(2, nil)
+end
+
 
 --------------------
 -- function param --
