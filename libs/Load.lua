@@ -4326,7 +4326,6 @@ function Loader.installExtraFunctions()
         if #out > 1 then table.insert( out, ', ' ) end
         table.insert( out, table.serialize(v, sortFunc, visited) )
       end
-      print(keys)
       for i,k in ipairs( keys ) do
         if type(k)~="number" then
           local v = tbl[k]
