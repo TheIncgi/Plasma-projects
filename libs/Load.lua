@@ -380,9 +380,10 @@ function Async.setScope( scope )
 end
 
 --debug hook
-function Async.setHook( func, mode, ... )
-  if not func then
+function Async.setHook( func, mode, count, ... )
+  if not func or func.type == "nil" then
     Async.threads[ Async.activeThread ].hook = nil
+    return
   end
   Async.threads[ Async.activeThread ].hook = {
     func = func,
@@ -726,6 +727,10 @@ function Loader.cleanupTokens( tokens )
       elseif token == "true" or token == "false" then
         infoToken.type = "boolean"
         infoToken.value = token == "true"
+
+      elseif token == "nil" then
+        infoToken.type = "nil"
+        infoToken.value = nil
       
       elseif tokenType == "op" or (tokenType=="keyword" and token == "in") then
         if (token == "=" or token == "in") and (prior and (prior.type == "var" or prior.value == "]")) then
