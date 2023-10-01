@@ -26,12 +26,7 @@ do
     return str:sub(2,5)
   ]=]
 
-  local test = tester:add("sub", env, function()
-    local scope = testUtils.newScope(Scope)
-    local results = testUtils.run(src, scope, Loader, Async).varargs
-    if not results then error"Expected return value" end
-    return results[1].value
-  end)
+  local test = testUtils.codeTest(tester, "sub", env, libs, src)
 
   test:var_eq(1, "ello")
 end
@@ -50,12 +45,7 @@ do
     return str:find"ello"
   ]=]
 
-  local test = tester:add("find", env, function()
-    local scope = testUtils.newScope(Scope)
-    local results = testUtils.run(src, scope, Loader, Async).varargs
-    if not results[1] or not results[2] then error"Expected return value" end
-    return results[1].value, results[2].value
-  end)
+  local test = testUtils.codeTest(tester, "find", env, libs, src)
 
   test:var_eq(1, 2)
   test:var_eq(2, 5)
@@ -75,12 +65,7 @@ do
     return #str:rep(10)
   ]=]
 
-  local test = tester:add("rep", env, function()
-    local scope = testUtils.newScope(Scope)
-    local results = testUtils.run(src, scope, Loader, Async).varargs
-    if not results[1] then error"Expected return value" end
-    return results[1].value
-  end)
+  local test = testUtils.codeTest(tester, "rep", env, libs, src)
 
   test:var_eq(1, 10)
 end
@@ -99,12 +84,7 @@ do
     return str:match"e."
   ]=]
 
-  local test = tester:add("match", env, function()
-    local scope = testUtils.newScope(Scope)
-    local results = testUtils.run(src, scope, Loader, Async).varargs
-    if not results[1] then error"Expected return value" end
-    return results[1].value
-  end)
+  local test = testUtils.codeTest(tester, "match", env, libs, src)
 
   test:var_eq(1, "el")
 end
@@ -128,12 +108,7 @@ do
     return i
   ]=]
 
-  local test = tester:add("gmatch", env, function()
-    local scope = testUtils.newScope(Scope)
-    local results = testUtils.run(src, scope, Loader, Async).varargs
-    if not results[1] then error"Expected return value" end
-    return results[1].value
-  end)
+  local test = testUtils.codeTest(tester, "gmatch", env, libs, src)
 
   test:var_eq(1, 2)
 end
@@ -151,12 +126,7 @@ do
     return string.char( 97 )
   ]=]
 
-  local test = tester:add("char", env, function()
-    local scope = testUtils.newScope(Scope)
-    local results = testUtils.run(src, scope, Loader, Async).varargs
-    if not results[1] then error"Expected return value" end
-    return results[1].value
-  end)
+  local test = testUtils.codeTest(tester, "char", env, libs, src)
 
   test:var_eq(1, "a")
 end
@@ -182,12 +152,7 @@ do
     return str:reverse()
   ]=]
 
-  local test = tester:add("reverse", env, function()
-    local scope = testUtils.newScope(Scope)
-    local results = testUtils.run(src, scope, Loader, Async).varargs
-    if not results[1] then error"Expected return value" end
-    return results[1].value
-  end)
+  local test = testUtils.codeTest(tester, "reverse", env, libs, src)
 
   test:var_eq(1, "!dlrow olleH")
 end
@@ -206,12 +171,7 @@ do
     return str:upper()
   ]=]
 
-  local test = tester:add("upper", env, function()
-    local scope = testUtils.newScope(Scope)
-    local results = testUtils.run(src, scope, Loader, Async).varargs
-    if not results[1] then error"Expected return value" end
-    return results[1].value
-  end)
+  local test = testUtils.codeTest(tester, "upper", env, libs, src)
 
   test:var_eq(1, "HELLO WORLD!")
 end
@@ -230,12 +190,7 @@ do
     return str:len()
   ]=]
 
-  local test = tester:add("len", env, function()
-    local scope = testUtils.newScope(Scope)
-    local results = testUtils.run(src, scope, Loader, Async).varargs
-    if not results[1] then error"Expected return value" end
-    return results[1].value
-  end)
+  local test = testUtils.codeTest(tester, "len", env, libs, src)
 
   test:var_eq(1, 12)
 end
@@ -254,12 +209,7 @@ do
     return str:gsub("l","L")
   ]=]
 
-  local test = tester:add("gsub", env, function()
-    local scope = testUtils.newScope(Scope)
-    local results = testUtils.run(src, scope, Loader, Async).varargs
-    if not results[1] then error"Expected return value" end
-    return results[1].value
-  end)
+  local test = testUtils.codeTest(tester, "gsub", env, libs, src)
 
   test:var_eq(1, "HeLLo worLd!")
 end
@@ -277,12 +227,7 @@ do
     return string.byte"a"
   ]=]
 
-  local test = tester:add("byte", env, function()
-    local scope = testUtils.newScope(Scope)
-    local results = testUtils.run(src, scope, Loader, Async).varargs
-    if not results[1] then error"Expected return value" end
-    return results[1].value
-  end)
+  local test = testUtils.codeTest(tester, "byte", env, libs, src)
 
   test:var_eq(1, 97)
 end
@@ -301,12 +246,7 @@ do
     return str:format("Hello", "world")
   ]=]
 
-  local test = tester:add("format", env, function()
-    local scope = testUtils.newScope(Scope)
-    local results = testUtils.run(src, scope, Loader, Async).varargs
-    if not results[1] then error"Expected return value" end
-    return results[1].value
-  end)
+  local test = testUtils.codeTest(tester, "format", env, libs, src)
 
   test:var_eq(1, "Hello world!")
 end
@@ -325,12 +265,7 @@ do
     return str:lower()
   ]=]
 
-  local test = tester:add("lower", env, function()
-    local scope = testUtils.newScope(Scope)
-    local results = testUtils.run(src, scope, Loader, Async).varargs
-    if not results[1] then error"Expected return value" end
-    return results[1].value
-  end)
+  local test = testUtils.codeTest(tester, "lower", env, libs, src)
 
   test:var_eq(1, "hello world!")
 end

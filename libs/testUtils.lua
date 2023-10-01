@@ -9,6 +9,11 @@ end
 
 -- execute source code
 function testUtils.run( src, scope, Loader, Async )
+  if Async.threads
+    and Async.threads[Async.activeThread]  then
+      local t = Async.threads[Async.activeThread]
+      Async.sync( t[#t] )
+  end
   local rawTokens = Async.sync( Loader.tokenize(src) )
   local tokens = Async.sync( Loader.cleanupTokens( rawTokens ) )
   local instructions = Async.sync( Loader.buildInstructions(tokens)  )
@@ -17,16 +22,20 @@ function testUtils.run( src, scope, Loader, Async )
 end
 
 function testUtils.newScope(Scope, testName)
-  testName = testName or "?"
-  local scope =  Scope:new("UNIT_TEST-"..testName, 1, nil, 1)
-  scope:addGlobals()
-  scope:addPlasmaGlobals()
-  return scope
+  error"DEPRECATED"
+  -- testName = testName or "?"
+  -- local scope =  Scope:new("UNIT_TEST-"..testName, 1, nil, 1)
+  -- scope:addGlobals()
+  -- scope:addPlasmaGlobals()
+  -- return scope
 end
 
 function testUtils.codeTest(tester, name, env, libs, src, expectedResultCount)
   return tester:add(name, env, function()
-    local scope = testUtils.newScope(libs.Scope, name)
+    --local scope = testUtils.newScope(libs.Scope, name)
+    libs.setup()
+    local scope = libs.Plasma.scope
+    scope.name = "UNIT_TEST-"..name
     local results = testUtils.run(src, scope, libs.Loader, libs.Async)
     results = results and results.varargs or {}
     if expectedResultCount and #results ~= expectedResultCount then

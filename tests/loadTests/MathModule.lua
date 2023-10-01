@@ -63,12 +63,7 @@ do
 
     local testSrc = src:gsub( "$1", info.func ):gsub("$2", table.concat(info.args,","))
 
-    local test = tester:add(info.func, env, function()
-      local scope = testUtils.newScope(Scope)
-      local results = testUtils.run(testSrc, scope, Loader, Async).varargs
-      if not results then error"Expected return value" end
-      return results[1].value
-    end)
+    local test = testUtils.codeTest(tester, info.func, env, libs, testSrc)
   
     test:var_eq(1, ("%.4f"):format(expected))
 
@@ -90,12 +85,7 @@ do
     return "%.4f":format( math.pi )
   ]=]
 
-  local test = tester:add("pi", env, function()
-    local scope = testUtils.newScope(Scope)
-    local results = testUtils.run(src, scope, Loader, Async).varargs
-    if not results then error"Expected return value" end
-    return results[1].value
-  end)
+  local test = testUtils.codeTest(tester, "pi", env, libs, src)
 
   test:var_eq(1, "3.1416")
 end
@@ -117,12 +107,7 @@ do
   math.randomseed(1234)
   local expected = ("%.4f, %.4f, %.4f"):format(math.random(), math.random(), math.random())
 
-  local test = tester:add("random and seed", env, function()
-    local scope = testUtils.newScope(Scope)
-    local results = testUtils.run(src, scope, Loader, Async).varargs
-    if not results then error"Expected return value" end
-    return results[1].value
-  end)
+  local test = testUtils.codeTest(tester, "random and seed", env, libs, src)
 
   test:var_eq(1, expected)
 end

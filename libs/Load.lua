@@ -4394,6 +4394,7 @@ function setup()
   Plasma.scope = Scope:new("PLASMA",1,nil,1)
   Plasma.scope:addGlobals()
   Plasma.scope:addPlasmaGlobals()
+  Loader.installExtraFunctions()
 end
 
 function loop()
@@ -4487,12 +4488,14 @@ local function test()
   print"done"
 end
 
-Loader.installExtraFunctions()
+
 
 -- test()
 return {
   Loader = Loader,
   Async = Async,
   Scope = Scope,
-  Net = Net
+  Net = Net,
+  Plasma = Plasma,
+  setup = setup,
 }

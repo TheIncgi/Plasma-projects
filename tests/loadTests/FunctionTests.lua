@@ -26,6 +26,7 @@ do
     end
     test()
     OUT_FUNC = not not x
+    return IN_FUNC, OUT_FUNC
   ]=]
   local env = Env:new()
   local common = testUtils.common(env)
@@ -33,16 +34,11 @@ do
   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
 
   --test code
-  local test = tester:add("scope test", env, function()
-    local scope = testUtils.newScope(Scope)
-    testUtils.run( src, scope, Loader, Async )
-    return scope:getRaw"IN_FUNC".value, scope:getRaw"OUT_FUNC".value
-  end)
+  local test = testUtils.codeTest(tester, "scope test", env, libs, src)
 
   --expect
   test:var_isTrue(1, "expected global `IN_FUNC` to be `true`, actual: $1") --1, first return value
   test:var_isFalse(2, "expected global `OUT_FUNC` to be `false`, actual: $1") --2, second return value
-  V1,V2,V3,V4,V5,V6,V7,V8 = nil, nil, nil, nil, nil, nil, nil, nil
 end
 
 -----------------
@@ -66,10 +62,7 @@ do
   testUtils.setupRequire( Async, Net, common, {path} )
     
   --test code
-  local test = tester:add("requires code", env, function()
-    local scope = testUtils.newScope(Scope)
-    testUtils.run( src, scope, Loader, Async )
-  end)
+  local test = testUtils.codeTest(tester, "require", env, libs, src)
     
 end
 
@@ -94,10 +87,7 @@ do
   common.printProxy{ "ok" }.exact()
     
   --test code
-  local test = tester:add("table function", env, function()
-    local scope = testUtils.newScope(Scope)
-    testUtils.run( src, scope, Loader, Async )
-  end)
+  local test = testUtils.codeTest(tester, "table function", env, libs, src)
     
 end
 

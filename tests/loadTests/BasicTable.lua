@@ -26,12 +26,7 @@ do
     return t[1]
   ]=]
 
-  local test = tester:add("basic index by []", env, function()
-    local scope = testUtils.newScope(Scope)
-    local results = testUtils.run(src, scope, Loader, Async).varargs
-    if not results[1] then error"Expected return value" end
-    return results[1].value
-  end)
+  local test = testUtils.codeTest(tester, "basic index by []", env, libs, src)
 
   test:var_eq(1, "ok")
 end
@@ -58,16 +53,7 @@ do
         t[1], t["foo bar"], t["cow"], t["hello"]
   ]=]
 
-  local test = tester:add("multiple index by []", env, function()
-    local scope = testUtils.newScope(Scope)
-    local results = testUtils.run(src, scope, Loader, Async).varargs
-    if not results then error"Expected return value" end
-    return 
-        results[1].value,
-        results[2].value,
-        results[3].value,
-        results[4].value
-  end)
+  local test = testUtils.codeTest(tester, "multiple index by []", env, libs, src)
 
   test:var_eq(1, 1000, "value 1 expected 1000, got $1")
   test:var_eq(2, 15, "value 2 expected 15, got $1")
