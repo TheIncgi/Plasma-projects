@@ -3527,8 +3527,8 @@ function Scope:addGlobals()
     Async.pushAndSetThread( id )
     Async.insertTasks(
       {
-        label = "coroutine-create", func = function( ... ) --receives from `resume` call
-          Loader.callFunc( sFunc, Loader._varargs(...), function( result )
+        label = "coroutine-create", func = function( args ) --receives from `resume` call
+          Loader.callFunc( sFunc, Loader._varargs(table.unpack(args)), function( result )
             if result then
               Async.insertTasks( Async.RETURN( "create-return to resume", result.varargs ) ) --pass to resume
             else
@@ -3562,7 +3562,7 @@ function Scope:addGlobals()
     
     Async.pushAndSetThread( threadID.value )
     Async.insertTasks( --in thread's tasks
-      Async.RETURN( "resume-pass args", ... ) --pass args to coroutine
+      Async.RETURN( "resume-pass args", {...} ) --pass args to coroutine
     )
   end, false, false))
 

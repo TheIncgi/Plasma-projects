@@ -163,18 +163,19 @@ do
 
   local src = [=[
     local thread = coroutine.create(function( arg ) 
-      coroutine.yield( arg + 1 )  
+      val = coroutine.yield( arg + 1 )  
       return "returned" 
     end)
     local x = coroutine.resume( thread, 10 )
     local y = coroutine.resume( thread, 15 )
-    return x, y
+    return x, y, val
   ]=]
 
   local test = testUtils.codeTest(tester, "yield & resume", env, libs, src)
-
-  test:var_eq(1, 11, "Expected 2st resume to yield value of 11, got $1")
+  
+  test:var_eq(1, 11, "Expected 1st resume to yield value of 11, got $1")
   test:var_eq(2, "returned", "Expected 2nd resume to return \"returned\" from thread, got $1")
+  test:var_eq(3, 15, "Expected yield to return 15 from resume, got $1")
 end
 
 --------------------
