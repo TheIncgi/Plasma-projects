@@ -1187,6 +1187,7 @@ end
 
 function Loader.readFunctionHeader(tokens, index, inline)
   local fname
+  local args = {}
   if not inline then
     local fToken = tokens[index-1]
     fname = tokens[index]
@@ -1194,8 +1195,15 @@ function Loader.readFunctionHeader(tokens, index, inline)
       error("Expected name for function on line"..fToken.line)
     end
     fname = fname.value
-    while tokens[index+1].value == "." do
+    while tokens[index+1].value == "." or tokens[index+1].value == ":" do
       if tokens[index+2].type=="var" then
+        if tokens[index+1].value == ":" then
+          if #args == 0 then
+            args[1] = "self"
+          else
+            error("multiple : in function decleration on line "..fToken.line)
+          end
+        end
         fname = fname .. "." .. tokens[index+2].value
         index = index + 2
       else
@@ -1208,7 +1216,6 @@ function Loader.readFunctionHeader(tokens, index, inline)
   if not par or par.type~="op" or par.value~="(" then
     error("Expected `(` for function on line"..fToken.line)
   end
-  local args = {}
   index = index + 2
   while tokens[index] and tokens[index].value~=")" do
     local name = tokens[index]
@@ -2203,7 +2210,8 @@ function Loader.eval( postfix, scope, line )
                     error("internal error, missing args marker for call")
                   end
 
-                  if func.type == "self" then
+                  if func.self then
+                    func.self = nil
                     if args.type ~= "varargs" then
                       args = Loader._varargs( args )
                     end
@@ -2313,7 +2321,9 @@ function Loader.eval( postfix, scope, line )
 
                 Loader.indexTableWithEvents( a, b, function(v)
                   table.insert(stack, v)
-                  table.insert(stack, val(selfVal.value, "self"))
+                  selfVal = val(selfVal.value)
+                  selfVal.self = true
+                  table.insert(stack, selfVal)
                 end)
                 return true
               end
