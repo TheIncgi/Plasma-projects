@@ -1,4 +1,4 @@
---Meta Lua 1.0.0
+--Meta Lua 1.0.1
 --Authors:
 --  TheIncgi
 -- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
@@ -890,6 +890,21 @@ function Loader.cleanupTokens( tokens )
           local newLine = token:sub(n,n) == "\n" and 1 or 0
           line = line + #token:gsub("[^\n]","")
           infoToken.value = token:sub(n + newLine, -n)
+        end
+        --apply escapes
+        for escape,value in pairs{
+          a = '\a', --bell
+          b = '\b', --\
+          f = '\f', --form feed
+          n = '\n', --new line
+          r = '\r', --carriage return
+          t = '\t', --tab
+          v = '\v', --vertical tab
+          ["\\"] = '\\', --also \
+          ["'"] = "'",
+          ['"'] = '"',
+        } do
+          infoToken.value = infoToken.value:gsub("\\"..escape, value)
         end
         --as call
         if prior and prior.type == "var" then
@@ -2211,11 +2226,20 @@ function Loader.eval( postfix, scope, line )
                     error("internal error, missing args marker for call")
                   end
 
-                  if func.self then
-                    func.self = nil
-                    if args.type ~= "varargs" then
-                      args = Loader._varargs( args )
+                  if args.type ~= "varargs" then
+                    args = Loader._varargs( args )
+                  end
+
+                  if token.value == "{" then
+                    local argTable = Loader.newTable()
+                    for i, v in ipairs(args.varargs) do
+                      Loader.assignToTable(argTable, Loader._val(i), v)
                     end
+                    args = Loader._varargs( argTable )
+                  end
+
+                  if func.self then
+                    func.self = nil  
                     args.value = func
                     table.insert(args.varargs, 1, func)
                     popAsync(stack, scope, line, false, 1, function(popped)
@@ -2233,7 +2257,7 @@ function Loader.eval( postfix, scope, line )
                       if args.type ~= "varargs" then
                         args = Loader._varargs( func, args )
                       else
-                        table.insert( args.varargs, func )
+                        table.insert( args.varargs, 1, func )
                       end
                       args.value = func
                       func = __call
@@ -4370,6 +4394,9 @@ function Net.require( path )
         if loaded.type ~= "table" then
           Loader.assignToTable(package, Loader._val("loaded"), Loader.newTable())
           loaded = Loader.indexTable(package, Loader._val("loaded"))
+        end
+        if not result then
+          result = Loader._varargs(Loader.constants["true"])
         end
         Loader.assignToTable(loaded, Loader._val(path), result.value)
         return {result}

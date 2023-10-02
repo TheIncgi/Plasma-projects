@@ -66,7 +66,6 @@ do
     
 end
 
-
 -----------------
 --  Table Func --
 -----------------
@@ -88,7 +87,29 @@ do
     
   --test code
   local test = testUtils.codeTest(tester, "table function", env, libs, src)
+end
+
+---------------------
+-- call with table --
+---------------------
+do
+  local src = [=[
+    function test( x )
+      return x[1]
+    end
+
+    return test{ 100 }
+  ]=]
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+  local path = "TheIncgi/Plasma-projects/main/testLibs/TableFunc"
     
+  --test code
+  local test = testUtils.codeTest(tester, "call with table", env, libs, src)
+  
+  test:var_eq(1, 100)
 end
 
 return tester

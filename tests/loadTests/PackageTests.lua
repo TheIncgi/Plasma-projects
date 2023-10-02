@@ -12,9 +12,9 @@ local tester = Tester:new()
 -- Tests
 -----------------------------------------------------------------
 
------------------
---   Require once   --
------------------
+--------------------
+-- Require once   --
+--------------------
 do
   local src = [=[
     local path = "TheIncgi/Plasma-projects/main/testLibs/HelloRequire"

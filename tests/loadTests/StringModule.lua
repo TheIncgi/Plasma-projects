@@ -270,4 +270,22 @@ do
   test:var_eq(1, "hello world!")
 end
 
+--------------------
+-- escape newline --
+--------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    return "\n":byte()
+  ]=]
+
+  local test = testUtils.codeTest(tester, "escape newline", env, libs, src)
+
+  test:var_eq(1, ("\n"):byte())
+end
+
 return tester

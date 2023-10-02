@@ -8,13 +8,8 @@ local any = matchers.any
 
 local tester = Tester:new()
 
-local classCode
-do
-  local file = io.open("libs/class.lua", "r")
-  classCode = file:read"*all"
-  file:close()
-end
-local src = classCode..[=[
+local src = [=[
+LOADED = require"TheIncgi/Plasma-projects/main/libs/class"
 
 MyClass = class"MyClass"
 MyClass.value = 0 --default
@@ -36,7 +31,7 @@ end
 
 local a,b,c = MyClass:new( 10 ), MyClass:new( 20 ), MyClass:new()
 a:inc()
-return a:getValue(), b:getValue(), c:getValue()
+return LOADED, a:getValue(), b:getValue(), c:getValue()
 ]=]
 
 -----------------------------------------------------------------
@@ -52,11 +47,14 @@ do
   local libs = testUtils.libs()
   local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
 
+  testUtils.setupRequire( Async, Net, common, {"TheIncgi/Plasma-projects/main/libs/class"})
+
   local test = testUtils.codeTest(tester, "class", env, libs, src)
 
-  test:var_eq(1, 11)
-  test:var_eq(2, 20)
-  test:var_eq(3,  0)
+  test:var_eq(1, true)
+  test:var_eq(2, 11)
+  test:var_eq(3, 20)
+  test:var_eq(4,  0)
 end
 
 return tester
