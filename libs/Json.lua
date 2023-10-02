@@ -1,4 +1,5 @@
-utils = {}
+require "Theincgi/Plasma-projects/main/libs/class"
+local utils = {}
 function utils.trimLeft( str )
   return str:match( "^[ \t\n\v]*([^ ]-.*)" ) or ""
 end
@@ -344,3 +345,5 @@ function JsonArray:toTable()
 end
 
 Json.static.JsonArray = JsonArray
+
+return Json
