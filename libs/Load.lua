@@ -7,6 +7,7 @@ local Async = {}
 local Loader = {}
 local Scope = {}
 local Net = {}
+local Plasma = {}
 local utils = {}
 
 Loader.tableIndexes = {}
@@ -3197,6 +3198,8 @@ end
 
 function Scope:addPlasmaGlobals()
   self:setNativeFunc( "output",     output      )
+  self:setNativeFunc( "output_image",     output_image      )
+  self:setNativeFunc( "color",     color      )
   self:setNativeFunc( "trigger",    trigger     )
   self:setNativeFunc( "read_var",   read_var    )
   self:setNativeFunc( "write_var",  write_var   )
@@ -3455,6 +3458,14 @@ function Scope:addGlobals()
   local authors = Loader.newTable()
   Loader.assignToTable(authors, Loader._val(1), Loader._val("TheIncgi"))
   self:setRaw(false, "_AUTHORS", authors)
+  ---------------------------------------------------------
+  -- package
+  ---------------------------------------------------------
+  local packageModule = Loader.newTable()
+  local packageLoaded = Loader.newTable()
+  Loader.assignToTable(packageModule, Loader._val("loaded"), packageLoaded)
+
+  self:setRaw(false, "package", packageModule)
   ---------------------------------------------------------
   -- math
   ---------------------------------------------------------
@@ -4305,6 +4316,21 @@ end
 --===================================================================================
 --TODO block concurrent requests from coroutines
 function Net.require( path )
+  path = path:sub(1,4) == "http" and path or 
+          "https://raw.githubusercontent.com/"..path..".lua"
+  local package = Plasma.scope:getRaw("package")
+  if package.type == "table" then
+    local loaded = Loader.indexTable(package, Loader._val("loaded"))
+    if loaded.type == "table" then
+      local pkg = Loader.indexTable(loaded, Loader._val(path))
+      if pkg.type ~= "nil" then
+        Async.insertTasks({label = "require-loaded",func=function()
+          return {Loader._varargs(module)}
+        end})
+        return
+      end
+    end
+  end
   --result handling
   Async.insertTasks(
     {
@@ -4312,7 +4338,6 @@ function Net.require( path )
       func = function()
         --network call
         Net.result = nil
-        path = "https://raw.githubusercontent.com/"..path..".lua"
         write_var(path, "url")
         output("require", 1)
         Async.yield = true
@@ -4326,8 +4351,28 @@ function Net.require( path )
           Async.yield = true
           return false -- wait till next tick
         end
-        Loader.run(Net.result) -- returns values
+        if type(Net.result) == "string" then
+          Loader.run(Net.result) -- returns values
+        else
+          return {Loader._varargs(Loader._val(Net.result))}
+        end
         return true --task complete
+      end
+    },{
+      label = "Net.require store to package.loaded",
+      func = function(result) --vararg
+        local package = Plasma.scope:getRaw("package")
+        if package.type ~= "table" then
+          Plasma.scope:setRaw("package", Loader.newTable())
+          package = Plasma.scope:getRaw("package")
+        end
+        local loaded = Loader.indexTable(package, Loader._val("loaded"))
+        if loaded.type ~= "table" then
+          Loader.assignToTable(package, Loader._val("loaded"), Loader.newTable())
+          loaded = Loader.indexTable(package, Loader._val("loaded"))
+        end
+        Loader.assignToTable(loaded, Loader._val(path), result.value)
+        return {result}
       end
     }
   )
@@ -4431,7 +4476,7 @@ end
 --==============================        Plasma        ===============================
 --===================================================================================
 --===================================================================================
-local Plasma = {}
+
 ------------------
 --  interfaces  --
 ------------------
