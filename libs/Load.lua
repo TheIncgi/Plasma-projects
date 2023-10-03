@@ -574,7 +574,7 @@ function Loader._chunkType( text )
 		local txt =  text
 		if name == "string" then
 			--hide escaped quotes for testing
-			txt = txt:gsub("\\'",""):gsub('\\"',"")
+			txt = txt:gsub("\\.","")
 		end
 		for _,pat in pairs( group ) do
 			if txt:match( pat ) then
@@ -861,7 +861,7 @@ function Loader.cleanupTokens( tokens )
             prior.inlineFunc = true
           end
         elseif token == "[" then
-          if prior and ( (prior.type == "var") or (prior.type == "op" and prior.value == "]") ) then
+          if prior and ( (prior.type == "var") or (prior.type == "op" and (prior.value == "]" or prior.value == ")" or prior.value == "}")) ) then
             infoToken.index = true
             if tokens[index+1] == "]" then
               error("index expected for [] on line "..line)
@@ -875,8 +875,11 @@ function Loader.cleanupTokens( tokens )
         or token == "then" then
           blockLevel = blockLevel + 1
           -- table.insert(blockStack, infoToken)
-        elseif token == "else" or token == "elseif" then
+        elseif token == "else" then
           infoToken.blockLevel = blockLevel-1
+        elseif token == "elseif" then
+          blockLevel = blockLevel - 1
+          infoToken.blockLevel = blockLevel
         elseif token == "end" or token=="until" then
           blockLevel = blockLevel-1
           infoToken.blockLevel = blockLevel
@@ -1054,7 +1057,7 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma,
       
       if not token then
         if start == index then return {false} end
-        if requiresValue then error("Incomplete expression at end of file") end
+        if requiresValue then error("Incomplete expression starting at "..tokens[start].line) end
         return {index}
       end
 
