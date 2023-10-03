@@ -1,4 +1,4 @@
-require "Theincgi/Plasma-projects/main/libs/class"
+require "TheIncgi/Plasma-projects/main/libs/class"
 local utils = {}
 function utils.trimLeft( str )
   return str:match( "^[ \t\n\v]*([^ ]-.*)" ) or ""

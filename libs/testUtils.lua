@@ -102,6 +102,17 @@ function testUtils.setupRequire( Async, Net, commonProxies, paths )
     end
   end
 
+  commonProxies.write_var{
+    function(a)
+      return true
+    end, 
+    function(a) 
+      return a=="url" 
+    end
+  }.matchedCompute(function(a, b)
+    error("Missing require setup for path `"..a.."`")
+  end)
+
   commonProxies.output{ "require", 1 }.exactCompute(function(...)
     Async.insertTasks(
       {
