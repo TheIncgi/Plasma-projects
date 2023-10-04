@@ -2068,7 +2068,7 @@ function Loader.setmetatable( tableValue, metatableValue )
     error("cannot change a protected metatable")
   end
   Loader.metatables[ tableValue.value ] = metatableValue.value
-  return table
+  return tableValue
 end
 
 --sync
@@ -3368,7 +3368,8 @@ function Scope:addGlobals()
 
   self:setNativeFunc( "type", function( value ) return value.type end, false, nil )
   self:setNativeFunc( "getmetatable", function( tblValue )
-    return Loader.getmetatable( tblValue ) --wrapped to block second arg
+    local tbl, protected = Loader.getmetatable( tblValue ) --wrapped to block second arg
+    return tbl, Loader._val(protected)
   end, false, false )
   self:setNativeFunc( "setmetatable", Loader.setmetatable, false, false )
   self:setNativeFunc( "rawset", Loader.assignToTable, false, false )
