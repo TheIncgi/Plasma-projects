@@ -83,6 +83,32 @@ do
 end
 
 -------------------
+-- local declare --
+-------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+do
+  local x
+  do
+    x = 10
+  end
+  y = x
+end
+return x, y
+  ]=]
+
+  local test = testUtils.codeTest(tester, "local declare", env, libs, src)
+
+  test:var_eq(1, nil)
+  test:var_eq(2, 10)
+end
+
+-------------------
 -- Block Level 1 --
 -------------------
 do

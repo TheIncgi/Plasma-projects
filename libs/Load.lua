@@ -1292,6 +1292,19 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
         table.insert(instructions, instruction)
         index = endTokenPos
         return --continue
+      elseif localVar and token.type == "var" then
+        local vars = {token}
+        while tokens[index+1].value == "," and tokens[index+1].type == "var" do
+          table.insert(vars, tokens[index + 2])
+          index = index + 2
+        end
+        local instruction = {
+          op = "declare",
+          vars = vars,
+          index = #instructions+1,
+          line = token.line
+        }
+        table.insert(instructions, instruction)
       elseif token.type == "keyword" then
 
         if token.value=="function" then
@@ -4066,7 +4079,11 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
         return false --continue
       end
       -- print("  DEBUG: "..inst.line..": "..inst.op.."["..#callStack.."]")
-      if inst.op == "assign" then
+      if inst.op == "declare" then
+        for i, var in ipairs(inst.vars) do
+          top:setAsync( true, var.value, Loader.constants["nil"] )
+        end
+      elseif inst.op == "assign" then
         -- local instruction = {
         --   op = "assign",
         --   vars = token.value,
