@@ -253,46 +253,24 @@ local JsonArray = class("common.JsonArray",Json)
 local _newJsonArray = JsonArray.new
 function JsonArray:new( src )
   local obj = _newJsonArray( self )
-  print("obj [JsonArray]: "..tostring(obj))
-  print("meta [JsonArray: 1]: "..tostring(getmetatable(obj)))
   obj.values = {}
-  print("meta [JsonArray: 2]: "..tostring(getmetatable(obj)))
   
-  print("meta [JsonArray: 3]: "..tostring(getmetatable(obj)))
   if src then
-    print("meta [JsonArray: 4]: "..tostring(getmetatable(obj)))
     local n = 1
-    print("meta [JsonArray: 5]: "..tostring(getmetatable(obj)))
     local val
-    print("meta [JsonArray: 6]: "..tostring(getmetatable(obj)))
     src = utils.trim(utils.trim( src ):sub(2,-2))
-    print("meta [JsonArray: 7]: "..tostring(getmetatable(obj)))
     while true do
-      print("meta [JsonArray: 8]: "..tostring(getmetatable(obj)))
       n, val = Json.static.readValue( src, n )
-      print("meta [JsonArray: 9]: "..tostring(getmetatable(obj)))
       if not val then break end
-      print("meta [JsonArray: 10]: "..tostring(getmetatable(obj)))
       assert(val,"No val from readVal")
-      print("meta [JsonArray: 11]: "..tostring(getmetatable(obj)))
       val = Json.static.fromString( val )
-      print("meta [JsonArray: 12]: "..tostring(getmetatable(obj)))
       --print("val:",val)
-      print("meta [JsonArray: 13]: "..tostring(getmetatable(obj)))
       table.insert( obj.values, val )
-      print("meta [JsonArray: 14]: "..tostring(getmetatable(obj)))
       n = Json.static.readTill(src, "[,%]]", n+1)+1
-      print("meta [JsonArray: 15]: "..tostring(getmetatable(obj)))
       n = Json.static.readTill(src, "[^ \n\t\v]", n)
-      print("meta [JsonArray: 16]: "..tostring(getmetatable(obj)))
     end
-    print("meta [JsonArray: 17]: "..tostring(getmetatable(obj)))
   end
-  print("meta [JsonArray: 18]: "..tostring(getmetatable(obj)))
   
-  print("meta [JsonArray: 19]: "..tostring(getmetatable(obj)))
-  print("obj [4]: "..tostring(obj))
-  print("meta [JsonArray: 20]: "..tostring(getmetatable(obj)))
   local meta = getmetatable(obj)
   meta.__len = function(t)
     return t:len()

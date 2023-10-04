@@ -29,7 +29,7 @@ setmetatable(Loader.strings, {
 })
 
 setmetatable(Loader.metatables, {
-  __mode = "v"
+  __mode = "k"
 })
 
 local ___log = ""
