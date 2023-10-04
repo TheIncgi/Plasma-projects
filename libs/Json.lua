@@ -161,6 +161,8 @@ local JsonObject = class("common.JsonObject",Json)
 local _newJsonObject = JsonObject.new
 function JsonObject:new( src )
   local obj = _newJsonObject( self )
+  print("obj [1]: "..tostring(obj))
+  print("meta [1]: "..tostring(getmetatable(obj)))
   obj.values = {}
   if src then
    --print("NEW|"..src)
@@ -186,7 +188,7 @@ function JsonObject:new( src )
       
     end
   end
-
+  print("obj [2]: "..tostring(obj))
   local meta = getmetatable(obj)
   meta.__len = function(t)
     return t:len()
@@ -254,6 +256,8 @@ local JsonArray = class("common.JsonArray",Json)
 local _newJsonArray = JsonArray.new
 function JsonArray:new( src )
   local obj = _newJsonArray( self )
+  print("obj [3]: "..tostring(obj))
+  print("meta [2]: "..tostring(getmetatable(obj)))
   obj.values = {}
 
   if src then
@@ -272,6 +276,7 @@ function JsonArray:new( src )
     end
   end
 
+  print("obj [4]: "..tostring(obj))
   local meta = getmetatable(obj)
   meta.__len = function(t)
     return t:len()
