@@ -271,7 +271,7 @@ do
 end
 
 --------------------
--- escape newline --
+-- escape newline 1 --
 --------------------
 do
   local env = Env:new()
@@ -283,9 +283,28 @@ do
     return "\n":byte()
   ]=]
 
-  local test = testUtils.codeTest(tester, "escape newline", env, libs, src)
+  local test = testUtils.codeTest(tester, "escape newline 1", env, libs, src)
 
   test:var_eq(1, ("\n"):byte())
+end
+
+--------------------
+-- escape newline 2 --
+--------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local ok, func = pcall( load, [==========[print("a\nb")]==========], "REPL" )
+    func()
+  ]=]
+
+  local test = testUtils.codeTest(tester, "escape newline 2", env, libs, src)
+
+  test:var_eq(1, "a\nb")
 end
 
 return tester

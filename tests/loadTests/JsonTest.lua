@@ -33,7 +33,7 @@ do
   local src = [=[
 Json = require"TheIncgi/Plasma-projects/main/libs/Json"
 
-local obj = Json.static.JsonObject:new() --{"obj": 10, "thing":[1,2,3]}'
+local obj = Json.static.JsonObject:new()
 obj:put("h", 10)
 local tbl = obj:toTable()
 return tbl.h--, table.unpack(tbl.thing)
@@ -61,11 +61,11 @@ do
   local src = [=[
 Json = require"TheIncgi/Plasma-projects/main/libs/Json"
 
-local obj = Json.static.JsonArray:new() --{"obj": 10, "thing":[1,2,3]}'
-obj:put(1)
-obj:put(3)
-obj:put(5)
-local tbl = obj:toTable()
+local j = Json.static.JsonArray:new()
+j:put(1)
+j:put(3)
+j:put(5)
+local tbl = j:toTable()
 return table.unpack(tbl)
 ]=]
   local test = testUtils.codeTest(tester, "Json Array", env, libs, src)
@@ -93,10 +93,10 @@ do
   local src = [=[
 Json = require"TheIncgi/Plasma-projects/main/libs/Json"
 
-local obj = Json:new'{"obj": 10, "thing":[1,2,3]}'
+local j = Json:new'{"h": 10, "thing":[1,2,3]}'
 
-local tbl = obj:toTable()
-return tbl.obj, table.unpack(tbl.thing)
+local tbl = j:toTable()
+return tbl.h, table.unpack(tbl.thing)
 ]=]
   local test = testUtils.codeTest(tester, "Json Mixed", env, libs, src)
 
