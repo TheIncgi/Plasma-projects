@@ -57,4 +57,77 @@ do
   test:var_eq(4,  0)
 end
 
+-----------
+-- class meta --
+-----------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  testUtils.setupRequire( Async, Net, common, {"TheIncgi/Plasma-projects/main/libs/class"})
+
+  local test = testUtils.codeTest(tester, "class meta", env, libs, [[
+LOADED = require"TheIncgi/Plasma-projects/main/libs/class"
+
+MyClass = class"MyClass"
+
+local _new = MyClass.new
+function MyClass:new( v, ... )
+  local obj = _new( self )
+  obj.value = v
+  return obj
+end
+
+inst = MyClass:new( 123 )
+
+M = getmetatable( inst )
+return type(M)
+  ]])
+
+  test:var_eq(1, "table")
+end
+
+-----------
+-- inherrited class meta --
+-----------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  testUtils.setupRequire( Async, Net, common, {"TheIncgi/Plasma-projects/main/libs/class"})
+
+  local test = testUtils.codeTest(tester, "class meta", env, libs, [[
+LOADED = require"TheIncgi/Plasma-projects/main/libs/class"
+
+A = class"A"
+local _newA = A.new
+function A:new( v, ... )
+  local obj = _newA( self )
+  obj.v = v
+  return obj
+end
+
+B = class("B", A)
+local _newB = B.new
+function B:new( v, ... )
+  local obj = _newB( self, v )
+  return obj
+end
+
+inst = B:new( 123 )
+
+M = getmetatable( inst )
+print(M)
+M.__len = 10
+return type(M), #inst
+]])
+
+  test:var_eq(1, "table")
+  test:var_eq(2, 10)
+end
+
 return tester

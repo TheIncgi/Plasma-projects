@@ -1949,7 +1949,13 @@ function Loader.newTable()
 end
 
 function Loader.assignToTable( tableValue, keyValue, valueValue, allowNilValue )
-  tableValue.value[keyValue] = (valueValue == nil or (valueValue.type == "nil" and allowNilValue) or valueValue.type~="nil") and valueValue
+  local indexer = Loader.getTableIndex( tableValue )
+  keyValue = indexer[keyValue.value] or keyValue
+  if (valueValue == nil or (valueValue.type == "nil" and allowNilValue) or valueValue.type~="nil") and valueValue then
+    tableValue.value[keyValue] = valueValue
+  else
+    tableValue.value[keyValue] = nil
+  end
   if valueValue == nil or (valueValue.type == "nil" and not allowNilValue) then
     Loader.tableIndexes[tableValue.value][keyValue.value] = nil
   else
@@ -2373,10 +2379,12 @@ function Loader.eval( postfix, scope, line )
               error("attempt to get the length of a function on line "..token.line)
             end
             local event = Loader.getMetaEvent(a, "__len")
-            if event.type ~= "nil" then
+            if event.type == "function" then
               Loader.callFunc( event, Loader._varargs( a ), function( size )
                 table.insert(stack, size.value)
               end)
+            elseif event.type ~= "nil" then
+              table.insert(stack, event)
             else
               table.insert(stack, val(#(a.type=="table" and Loader.tableIndexes[a.value] or a.value)))
             end
@@ -3359,7 +3367,9 @@ function Scope:addGlobals()
   end, false, false )
 
   self:setNativeFunc( "type", function( value ) return value.type end, false, nil )
-  self:setNativeFunc( "getmetatable", Loader.getmetatable, false, false )
+  self:setNativeFunc( "getmetatable", function( tblValue )
+    return Loader.getmetatable( tblValue ) --wrapped to block second arg
+  end, false, false )
   self:setNativeFunc( "setmetatable", Loader.setmetatable, false, false )
   self:setNativeFunc( "rawset", Loader.assignToTable, false, false )
   self:setNativeFunc( "rawget", Loader.indexTable, false, false )
