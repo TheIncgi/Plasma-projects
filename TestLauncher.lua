@@ -3,29 +3,29 @@ package.path = package.path..";"..UNIT_TEST_LIB_PATH
 package.path = package.path..";./tests/?.lua"
 package.path = package.path..";./tests/loadTests/?.lua"
 
-HIDE_PASS = false
+HIDE_PASS = true
 
 local tests = {
-  -- "BasicTests",
-  -- "FunctionTests",
-  -- "OrderOfOps",
-  -- "StringModule",
-  -- "MathModule",
-  -- "BasicTable",
-  -- "TableModule",
-  -- "Bit32Module",
-  -- "CoroutineModule",
-  -- "Metatable",
-  -- "ShortCircuiting",
-  -- "LoadTests",
-  -- "_GTests",
-  -- "ErrorHandlingTests",
-  -- "DebugTests",
-  -- "LoopTests",
-  -- "ScopeTests",
-  -- "ClassTest",
+  "BasicTests",
+  "FunctionTests",
+  "OrderOfOps",
+  "StringModule",
+  "MathModule",
+  "BasicTable",
+  "TableModule",
+  "Bit32Module",
+  "CoroutineModule",
+  "Metatable",
+  "ShortCircuiting",
+  "LoadTests",
+  "_GTests",
+  "ErrorHandlingTests",
+  "DebugTests",
+  "LoopTests",
+  "ScopeTests",
+  "ClassTest",
   "JsonTest",
-  -- "PackageTests",
+  "PackageTests",
 }
 
 local totalPassed = 0
