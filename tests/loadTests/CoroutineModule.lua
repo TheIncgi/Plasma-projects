@@ -199,4 +199,32 @@ do
   test:var_eq(1, "dead", "Expected finished thread to have status \"dead\", got $1")
 end
 
+------------------------
+-- can store in table --
+------------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local thread = coroutine.create(function() end)
+    numTbl = { thread }
+    hashTbl = { [thread] = true }
+    hashTbl2 = {}
+    hashTbl2[ thread ] = true
+
+    k = next(hashTbl)
+    return type(numTbl[1]), k == thread, type(k), type(next(hashTbl2))
+  ]=]
+
+  local test = testUtils.codeTest(tester, "can store in table", env, libs, src)
+
+  test:var_eq(1, "thread")
+  test:var_eq(2, true)
+  test:var_eq(3, "thread")
+  test:var_eq(4, "thread")
+end
+
 return tester

@@ -120,5 +120,29 @@ do
   test:var_eq(1, 6)
 end
 
+------------------
+-- repeat until --
+------------------
+do
+  --given
+  local src = [=[
+    local i = 0
+    repeat
+      i = i+1
+    until i > 5
+    return i
+  ]=]
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  --test code
+  local test = testUtils.codeTest(tester, "repeat until", env, libs, src)
+
+  --expect
+  test:var_eq(1, 6)
+end
+
 
 return tester

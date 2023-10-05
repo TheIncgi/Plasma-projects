@@ -1,4 +1,4 @@
---Meta Lua 1.0.1
+VERSION = "Meta Lua 1.0.2"
 --Authors:
 --  TheIncgi
 -- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
@@ -1364,13 +1364,26 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
           }
           table.insert(instructions, inst)
           table.insert(blocks, inst)
+        elseif token.value == "repeat" then
+          table.insert(instructions, {
+            op = "createScope",
+            line = token.line,
+            index = #instructions+1
+          })
+          local inst = {
+            op = token.value,
+            index = #instructions+1,
+            line = token.line
+          }
+          table.insert(instructions, inst)
+          table.insert(blocks, inst)
         elseif token.value == "return" or token.value=="until" then
           local infix, endTokenPos = Loader._collectExpression(tokens, index+1, false, token.line) --todo async improvment
           local instruction = {
             op = token.value,
             infix = { [token.value=="until" and "condition" or "eval"] = infix },
             index = #instructions+1,
-            line = token.line
+            line = token.line,
           }
           
           table.insert(instructions, instruction)
@@ -1378,11 +1391,8 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
           if token.value == "until" then
             local deleteScope = {op="deleteScope", token = token, index = #instructions+1, line = token.line}
             table.insert(instructions, deleteScope)
-            local startingBlock = table.remove(blocks)
-            if startingBlock.skip == false then
-              startingBlock.skip = instruction
-              instruction.start = startingBlock
-            end
+            local startingBlock = table.remove(blocks)            
+            instruction.start = startingBlock
             if token.blockLevel <= exitBlockLevel then
               return {instructions, index + 1}
             end
@@ -3018,6 +3028,8 @@ function Loader.tostring( x )
     local name = x.name and (" "..x.name) or ""
     local line = x.line and ":"..x.line or ""
     return Loader._val("function"..name.."("..argNames..")"..line)
+  elseif x.type == "thread" then
+    return Loader._val("<thread "..x.value..">")
   end
   return Loader._val(tostring( x.value ))
 end
@@ -3506,9 +3518,9 @@ function Scope:addGlobals()
     if v.type=="function" or v.value then
       return v, msg, ...
     end
-    error( msg )
+    error( msg.value )
   end, false, false)
-  self:setRaw(false, "_VERSION", Loader._val("MetaLua 1.0.1"))
+  self:setRaw(false, "_VERSION", Loader._val(VERSION))
 
   local authors = Loader.newTable()
   Loader.assignToTable(authors, Loader._val(1), Loader._val("TheIncgi"))
@@ -3928,7 +3940,7 @@ function Loader._getTableAssignmentTargets(vars, top)
                   func = function(results)
                     table.insert(targets,{
                       place = place,
-                      name = results[1].value
+                      name = results[1]
                     })
                     return true
                   end
@@ -4114,7 +4126,8 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
                 if target.place == "scope" then
                   top:setAsync(inst.isLocal, target.name, stack[i] or Loader.constants["nil"] )
                 else
-                  local nameVal = Loader._val(target.name)
+                  local nameVal = target.name
+                  if type(nameVal) == "string" then error("internal error: assignment targets should evaluate to wrapped values") end
                   Loader.assignToTableWithEvents( target.place, nameVal, stack[i] )
                 end
               end
@@ -4325,6 +4338,10 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
           end
         end)
         return --continue
+      
+      elseif inst.op == "repeat" then
+        --no opperation
+
       elseif inst.op == "until" then
         Async.insertTasks({
           label = "until condition results",
