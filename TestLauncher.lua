@@ -24,6 +24,7 @@ local tests = {
   "LoopTests",
   "ScopeTests",
   "ClassTest",
+  "JsonTest",
   "PackageTests",
 }
 

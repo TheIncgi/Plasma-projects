@@ -157,6 +157,31 @@ do
   test:var_eq(6, "bar")
 end
 
+------------------------------
+-- optional comma for table --
+------------------------------
+do
+  --given
+  local src = [=[
+    t = {
+      10,
+      20, 
+      30,
+    }
+    return table.unpack(t)
+  ]=]
+  local env = Env:new()
+  local libs = testUtils.libs()
+  local common = testUtils.common(env)
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local test = testUtils.codeTest( tester, "opt table comma", env, libs, src )
+  
+  test:var_eq(1, 10)
+  test:var_eq(2, 20)
+  test:var_eq(3, 30)
+end
+
 -----------------------
 --print(function)    --
 -----------------------

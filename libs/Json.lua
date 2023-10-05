@@ -1,4 +1,4 @@
-require "Theincgi/Plasma-projects/main/libs/class"
+require "TheIncgi/Plasma-projects/main/libs/class"
 local utils = {}
 function utils.trimLeft( str )
   return str:match( "^[ \t\n\v]*([^ ]-.*)" ) or ""
@@ -186,7 +186,6 @@ function JsonObject:new( src )
       
     end
   end
-
   local meta = getmetatable(obj)
   meta.__len = function(t)
     return t:len()
@@ -255,7 +254,7 @@ local _newJsonArray = JsonArray.new
 function JsonArray:new( src )
   local obj = _newJsonArray( self )
   obj.values = {}
-
+  
   if src then
     local n = 1
     local val
@@ -271,7 +270,7 @@ function JsonArray:new( src )
       n = Json.static.readTill(src, "[^ \n\t\v]", n)
     end
   end
-
+  
   local meta = getmetatable(obj)
   meta.__len = function(t)
     return t:len()

@@ -102,15 +102,27 @@ function testUtils.setupRequire( Async, Net, commonProxies, paths )
     end
   end
 
+  --uncomment if require loop happens
+  -- commonProxies.write_var{
+  --   function(a)
+  --     return true
+  --   end, 
+  --   function(a) 
+  --     return a=="url" 
+  --   end
+  -- }.matchedCompute(function(a, b)
+  --   error("Missing require setup for path `"..a.."`")
+  -- end)
+  commonProxies.read_var{"src"}.exactCompute(function()
+    return sources[ lastURL ]
+  end)
+
   commonProxies.output{ "require", 1 }.exactCompute(function(...)
     Async.insertTasks(
       {
         label = "UNIT TESTING - Require - Net result: "..lastURL,
         func = function()
           -- V1 = sources[ lastURL ]
-          commonProxies.read_var{"src"}.exactCompute(function()
-            return sources[ lastURL ]
-          end)
           Net.sourceCode()
           return true --task complete
           end

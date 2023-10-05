@@ -270,4 +270,41 @@ do
   test:var_eq(1, "hello world!")
 end
 
+--------------------
+-- escape newline 1 --
+--------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    return "\n":byte()
+  ]=]
+
+  local test = testUtils.codeTest(tester, "escape newline 1", env, libs, src)
+
+  test:var_eq(1, ("\n"):byte())
+end
+
+--------------------
+-- escape newline 2 --
+--------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local ok, func = pcall( load, [==========[print("a\nb")]==========], "REPL" )
+    func()
+  ]=]
+
+  local test = testUtils.codeTest(tester, "escape newline 2", env, libs, src)
+  
+  common.printProxy{"a\nb"}:exact()
+end
+
 return tester

@@ -1,4 +1,4 @@
---Meta Lua 1.0.0
+--Meta Lua 1.0.1
 --Authors:
 --  TheIncgi
 -- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
@@ -29,7 +29,7 @@ setmetatable(Loader.strings, {
 })
 
 setmetatable(Loader.metatables, {
-  __mode = "v"
+  __mode = "k"
 })
 
 local ___log = ""
@@ -574,7 +574,7 @@ function Loader._chunkType( text )
 		local txt =  text
 		if name == "string" then
 			--hide escaped quotes for testing
-			txt = txt:gsub("\\'",""):gsub('\\"',"")
+			txt = txt:gsub("\\.","")
 		end
 		for _,pat in pairs( group ) do
 			if txt:match( pat ) then
@@ -861,7 +861,7 @@ function Loader.cleanupTokens( tokens )
             prior.inlineFunc = true
           end
         elseif token == "[" then
-          if prior and ( (prior.type == "var") or (prior.type == "op" and prior.value == "]") ) then
+          if prior and ( (prior.type == "var") or (prior.type == "op" and (prior.value == "]" or prior.value == ")" or prior.value == "}")) ) then
             infoToken.index = true
             if tokens[index+1] == "]" then
               error("index expected for [] on line "..line)
@@ -875,21 +875,43 @@ function Loader.cleanupTokens( tokens )
         or token == "then" then
           blockLevel = blockLevel + 1
           -- table.insert(blockStack, infoToken)
-        elseif token == "else" or token == "elseif" then
+        elseif token == "else" then
           infoToken.blockLevel = blockLevel-1
+        elseif token == "elseif" then
+          blockLevel = blockLevel - 1
+          infoToken.blockLevel = blockLevel
         elseif token == "end" or token=="until" then
           blockLevel = blockLevel-1
           infoToken.blockLevel = blockLevel
         end
       elseif tokenType=="string" then
         --remove quotes
+        local isBlocky = false
         if token:match([=[^["']]=]) then
           infoToken.value = token:sub(2,-2)
         else
+          isBlocky = true
           local n = #token:match"^%[=*%[" + 1
           local newLine = token:sub(n,n) == "\n" and 1 or 0
           line = line + #token:gsub("[^\n]","")
           infoToken.value = token:sub(n + newLine, -n)
+        end
+        --apply escapes
+        if not isBlocky then
+          for escape,value in pairs{
+            a = '\a', --bell
+            b = '\b', --\
+            f = '\f', --form feed
+            n = '\n', --new line
+            r = '\r', --carriage return
+            t = '\t', --tab
+            v = '\v', --vertical tab
+            ["\\"] = '\\', --also \
+            ["'"] = "'",
+            ['"'] = '"',
+          } do
+            infoToken.value = infoToken.value:gsub("\\"..escape, value)
+          end
         end
         --as call
         if prior and prior.type == "var" then
@@ -1039,7 +1061,7 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma,
       
       if not token then
         if start == index then return {false} end
-        if requiresValue then error("Incomplete expression at end of file") end
+        if requiresValue then error("Incomplete expression starting at line "..tokens[start].line) end
         return {index}
       end
 
@@ -1274,6 +1296,19 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
         table.insert(instructions, instruction)
         index = endTokenPos
         return --continue
+      elseif localVar and token.type == "var" then
+        local vars = {token}
+        while tokens[index+1].value == "," and tokens[index+1].type == "var" do
+          table.insert(vars, tokens[index + 2])
+          index = index + 2
+        end
+        local instruction = {
+          op = "declare",
+          vars = vars,
+          index = #instructions+1,
+          line = token.line
+        }
+        table.insert(instructions, instruction)
       elseif token.type == "keyword" then
 
         if token.value=="function" then
@@ -1931,7 +1966,13 @@ function Loader.newTable()
 end
 
 function Loader.assignToTable( tableValue, keyValue, valueValue, allowNilValue )
-  tableValue.value[keyValue] = (valueValue == nil or (valueValue.type == "nil" and allowNilValue) or valueValue.type~="nil") and valueValue
+  local indexer = Loader.getTableIndex( tableValue )
+  keyValue = indexer[keyValue.value] or keyValue
+  if (valueValue == nil or (valueValue.type == "nil" and allowNilValue) or valueValue.type~="nil") and valueValue then
+    tableValue.value[keyValue] = valueValue
+  else
+    tableValue.value[keyValue] = nil
+  end
   if valueValue == nil or (valueValue.type == "nil" and not allowNilValue) then
     Loader.tableIndexes[tableValue.value][keyValue.value] = nil
   else
@@ -2044,7 +2085,7 @@ function Loader.setmetatable( tableValue, metatableValue )
     error("cannot change a protected metatable")
   end
   Loader.metatables[ tableValue.value ] = metatableValue.value
-  return table
+  return tableValue
 end
 
 --sync
@@ -2211,11 +2252,20 @@ function Loader.eval( postfix, scope, line )
                     error("internal error, missing args marker for call")
                   end
 
-                  if func.self then
-                    func.self = nil
-                    if args.type ~= "varargs" then
-                      args = Loader._varargs( args )
+                  if args.type ~= "varargs" then
+                    args = Loader._varargs( args )
+                  end
+
+                  if token.value == "{" then
+                    local argTable = Loader.newTable()
+                    for i, v in ipairs(args.varargs) do
+                      Loader.assignToTable(argTable, Loader._val(i), v)
                     end
+                    args = Loader._varargs( argTable )
+                  end
+
+                  if func.self then
+                    func.self = nil  
                     args.value = func
                     table.insert(args.varargs, 1, func)
                     popAsync(stack, scope, line, false, 1, function(popped)
@@ -2233,7 +2283,7 @@ function Loader.eval( postfix, scope, line )
                       if args.type ~= "varargs" then
                         args = Loader._varargs( func, args )
                       else
-                        table.insert( args.varargs, func )
+                        table.insert( args.varargs, 1, func )
                       end
                       args.value = func
                       func = __call
@@ -2346,10 +2396,12 @@ function Loader.eval( postfix, scope, line )
               error("attempt to get the length of a function on line "..token.line)
             end
             local event = Loader.getMetaEvent(a, "__len")
-            if event.type ~= "nil" then
+            if event.type == "function" then
               Loader.callFunc( event, Loader._varargs( a ), function( size )
                 table.insert(stack, size.value)
               end)
+            elseif event.type ~= "nil" then
+              table.insert(stack, event)
             else
               table.insert(stack, val(#(a.type=="table" and Loader.tableIndexes[a.value] or a.value)))
             end
@@ -3332,7 +3384,10 @@ function Scope:addGlobals()
   end, false, false )
 
   self:setNativeFunc( "type", function( value ) return value.type end, false, nil )
-  self:setNativeFunc( "getmetatable", Loader.getmetatable, false, false )
+  self:setNativeFunc( "getmetatable", function( tblValue )
+    local tbl, protected = Loader.getmetatable( tblValue ) --wrapped to block second arg
+    return tbl, Loader._val(protected)
+  end, false, false )
   self:setNativeFunc( "setmetatable", Loader.setmetatable, false, false )
   self:setNativeFunc( "rawset", Loader.assignToTable, false, false )
   self:setNativeFunc( "rawget", Loader.indexTable, false, false )
@@ -4028,7 +4083,11 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
         return false --continue
       end
       -- print("  DEBUG: "..inst.line..": "..inst.op.."["..#callStack.."]")
-      if inst.op == "assign" then
+      if inst.op == "declare" then
+        for i, var in ipairs(inst.vars) do
+          top:setAsync( true, var.value, Loader.constants["nil"] )
+        end
+      elseif inst.op == "assign" then
         -- local instruction = {
         --   op = "assign",
         --   vars = token.value,
@@ -4370,6 +4429,9 @@ function Net.require( path )
         if loaded.type ~= "table" then
           Loader.assignToTable(package, Loader._val("loaded"), Loader.newTable())
           loaded = Loader.indexTable(package, Loader._val("loaded"))
+        end
+        if not result then
+          result = Loader._varargs(Loader.constants["true"])
         end
         Loader.assignToTable(loaded, Loader._val(path), result.value)
         return {result}
