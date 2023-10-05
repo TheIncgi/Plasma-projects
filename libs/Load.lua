@@ -3508,7 +3508,7 @@ function Scope:addGlobals()
     end
     error( msg )
   end, false, false)
-  self:setRaw(false, "_VERSION", Loader._val("MetaLua 1.0.0"))
+  self:setRaw(false, "_VERSION", Loader._val("MetaLua 1.0.1"))
 
   local authors = Loader.newTable()
   Loader.assignToTable(authors, Loader._val(1), Loader._val("TheIncgi"))
@@ -4614,6 +4614,7 @@ end
 
 run = Loader.run
 src = Net.sourceCode
+interrupt = Async.interrupt
 
 --===================================================================================
 --===================================================================================
