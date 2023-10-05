@@ -1,4 +1,4 @@
-VERSION = "Meta Lua 1.0.2"
+VERSION = "Meta Lua 1.0.3"
 --Authors:
 --  TheIncgi
 -- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
