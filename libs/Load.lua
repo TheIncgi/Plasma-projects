@@ -1,4 +1,4 @@
-VERSION = "Meta Lua 1.0.2"
+VERSION = "Meta Lua 1.0.3"
 --Authors:
 --  TheIncgi
 -- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
@@ -2312,7 +2312,7 @@ function Loader.eval( postfix, scope, line )
                     if result and result.varargs then
                       result.len = math.min(1, #result.varargs )
                     end
-                    table.insert( stack, result )
+                    table.insert( stack, result or Loader.constants["nil"] )
                   end)
                   return true
                 end
