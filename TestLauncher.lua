@@ -3,7 +3,7 @@ package.path = package.path..";"..UNIT_TEST_LIB_PATH
 package.path = package.path..";./tests/?.lua"
 package.path = package.path..";./tests/loadTests/?.lua"
 
-HIDE_PASS = true
+HIDE_PASS = false
 
 local tests = {
   "BasicTests",

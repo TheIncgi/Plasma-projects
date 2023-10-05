@@ -886,28 +886,32 @@ function Loader.cleanupTokens( tokens )
         end
       elseif tokenType=="string" then
         --remove quotes
+        local isBlocky = false
         if token:match([=[^["']]=]) then
           infoToken.value = token:sub(2,-2)
         else
+          isBlocky = true
           local n = #token:match"^%[=*%[" + 1
           local newLine = token:sub(n,n) == "\n" and 1 or 0
           line = line + #token:gsub("[^\n]","")
           infoToken.value = token:sub(n + newLine, -n)
         end
         --apply escapes
-        for escape,value in pairs{
-          a = '\a', --bell
-          b = '\b', --\
-          f = '\f', --form feed
-          n = '\n', --new line
-          r = '\r', --carriage return
-          t = '\t', --tab
-          v = '\v', --vertical tab
-          ["\\"] = '\\', --also \
-          ["'"] = "'",
-          ['"'] = '"',
-        } do
-          infoToken.value = infoToken.value:gsub("\\"..escape, value)
+        if not isBlocky then
+          for escape,value in pairs{
+            a = '\a', --bell
+            b = '\b', --\
+            f = '\f', --form feed
+            n = '\n', --new line
+            r = '\r', --carriage return
+            t = '\t', --tab
+            v = '\v', --vertical tab
+            ["\\"] = '\\', --also \
+            ["'"] = "'",
+            ['"'] = '"',
+          } do
+            infoToken.value = infoToken.value:gsub("\\"..escape, value)
+          end
         end
         --as call
         if prior and prior.type == "var" then
@@ -1057,7 +1061,7 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma,
       
       if not token then
         if start == index then return {false} end
-        if requiresValue then error("Incomplete expression starting at "..tokens[start].line) end
+        if requiresValue then error("Incomplete expression starting at line "..tokens[start].line) end
         return {index}
       end
 

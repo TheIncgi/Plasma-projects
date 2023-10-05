@@ -303,8 +303,8 @@ do
   ]=]
 
   local test = testUtils.codeTest(tester, "escape newline 2", env, libs, src)
-
-  test:var_eq(1, "a\nb")
+  
+  common.printProxy{"a\nb"}:exact()
 end
 
 return tester
