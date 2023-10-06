@@ -4,17 +4,18 @@ _EVENTS = {}
 os = os or {}
 os.queueEvent = function(eventName, ...)
   assert(type(eventName)=="string", "arg 1 `eventName` expects a string, got "..type(eventName))
-  table.insert(_EVENTS, {event, ...})
+  table.insert(_EVENTS, {eventName, ...})
 end
 
 --use: os.pullEvent"gamepad"
 --os.pullEvent{gamepad = true, foo = true}
 os.pullEvent = function(filters)
   if type(filters) == "string" then
-    filters = {filters = true}
+    filters = {[filters] = true}
   end
   local event
   repeat
+    trigger(5)
     event = coroutine.yield() or {}
   until filters[event[1]]
   return table.unpack(event)
@@ -27,7 +28,7 @@ do  --limit scope
     print("Waiting for gamepad events")
     while true do
       local event, about, detail = os.pullEvent"gamepad"
-      print(event, about, detail and table.serialize(detail) or "")
+      print("EVENT:", event, about, detail and table.serialize(detail) or "")
       if about == "back" then
         break
       end
@@ -49,7 +50,7 @@ function main()
           table.insert(toRemove, task)            --mark for cleanup
           continue
         end
-        coroutine.resume( task ) --modify with pcall/xpcall if you want
+        coroutine.resume( task, event ) --modify with pcall/xpcall if you want
       end
 
       --cleanup completed tasks
