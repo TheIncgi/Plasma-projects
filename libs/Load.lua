@@ -717,7 +717,7 @@ function Loader.cleanupTokens( tokens )
         infoToken.value = tonumber(infoToken.value, base)
 
         if prior and prior.value == "-"
-        and ((twicePrior and twicePrior.type == "op" and (
+        and ((twicePrior and (twicePrior.type == "op" or twicePrior.type == "assignment-set") and (
           twicePrior.value ~= ")" and twicePrior.value ~= "}" and twicePrior.value ~= "]" ))
          or twicePrior == nil or (twicePrior and twicePrior.type=="keyword")) then
           table.remove(tokens, index-1)

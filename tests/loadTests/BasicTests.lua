@@ -36,6 +36,27 @@ do
   printProxy{ "Hello world!" }.exact()
 end
 
+---------------
+-- negative --
+---------------
+do
+  --given
+  local src = [=[
+    local t = -0.99
+    return t
+  ]=]
+  local env = Env:new()
+  local libs = testUtils.libs()
+  local common = testUtils.common(env)
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  --test code
+  local test = testUtils.codeTest(tester, "negative", env, libs, src)
+  
+  --expect
+  test:var_eq(1, -0.99)
+end
+
 -------------
 -- , order --
 -------------
