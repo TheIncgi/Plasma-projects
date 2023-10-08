@@ -621,6 +621,18 @@ function Loader.tokenize( src )
       if chunkType2 == "op" and #chunk == 1 then
         chunkType2 = Loader._ops[ chunk2 ] ~= nil
       end
+      if chunkType2 == "op" and chunk2:sub(1,2) ~= "[=" then
+        local hasMatch = false
+        for k in pairs( Loader._ops ) do
+          if k:sub(1, #chunk2) == chunk2 then
+            hasMatch = true
+            break
+          end
+        end
+        if not hasMatch then
+          chunkType2 = false
+        end
+      end
       if not chunkType2
         and (chunk2:sub(1,1) == '"' or chunk2:sub(1,1) == "'")
         and Loader._chunkType(chunk or "")~="string" then

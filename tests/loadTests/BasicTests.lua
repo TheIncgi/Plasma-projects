@@ -226,4 +226,23 @@ do
   local test = testUtils.codeTest( tester, "next", env, libs, src ) 
 end
 
+---------
+-- ..# --
+---------
+do
+  --given
+  local src = [=[
+    x = "foo"
+    return "len: "..#x
+  ]=]
+  local env = Env:new()
+  local libs = testUtils.libs()
+  local common = testUtils.common(env)
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local test = testUtils.codeTest( tester, "..#", env, libs, src )
+
+  test:var_eq(1,"len: 3")
+end
+
 return tester
