@@ -128,7 +128,7 @@ function NNet:_build()
     print("_build", layerNum)
     local layer = {}
     self.layers[ layerNum ] = layer
-    for i = 1, config.size do
+    for i = n, config.size do
       print("_build", layerNum, n)
       print"createNeuron"
       local neuron = Neuron:new( config.activation or "signedSigmoid", config.inputs or #self.layers[ layerNum-1 ], config.size )
