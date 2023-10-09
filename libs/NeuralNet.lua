@@ -229,6 +229,37 @@ function NNet:decayLearningRate()
   self.learningFactor = self.learningFactor * self.learningDecay
 end
 
+function NNet:score(labels, predictions)
+  local numExamples = #labels
+  local numClasses = #labels[1]
+  local totalError = 0
+  local totalSquaredError = 0
+
+  for j = 1, numExamples do
+    local exampleError = 0
+      local exampleSquaredError = 0
+
+      for i = 1, numClasses do
+         local label = labels[j][i]
+          local prediction = predictions[j][i]
+          local error = label - prediction
+          exampleError = exampleError + error
+          exampleSquaredError = exampleSquaredError + error^2
+      end
+      totalError = totalError + exampleError
+      totalSquaredError = totalSquaredError + exampleSquaredError
+  end
+  local meanError = totalError / (numExamples * numClasses)
+  local meanSquaredError = totalSquaredError / (numExamples * numClasses)
+  local rootMeanSquaredError = math.sqrt(meanSquaredError)
+
+  local errors = {}
+  errors["mean_error"] = meanError
+  errors["mean_squared_error"] = meanSquaredError
+  errors["root_mean_squared_error"] = rootMeanSquaredError
+  return errors
+end
+
 ------------------------------------------------------------------------
 -- Neuron
 ------------------------------------------------------------------------
@@ -289,37 +320,6 @@ function Neuron:backProp( inputs, errAmount, learningRate )
       this.weights[ weightNum ] = weight + adjust
       prevErrors[ weightNum ] = adjust * weight
   end
-end
-
-function score(labels, predictions)
-  local numExamples = #labels
-  local numClasses = #labels[1]
-  local totalError = 0
-  local totalSquaredError = 0
-
-  for j = 1, numExamples do
-    local exampleError = 0
-      local exampleSquaredError = 0
-
-      for i = 1, numClasses do
-         local label = labels[j][i]
-          local prediction = predictions[j][i]
-          local error = label - prediction
-          exampleError = exampleError + error
-          exampleSquaredError = exampleSquaredError + error^2
-      end
-      totalError = totalError + exampleError
-      totalSquaredError = totalSquaredError + exampleSquaredError
-  end
-  local meanError = totalError / (numExamples * numClasses)
-  local meanSquaredError = totalSquaredError / (numExamples * numClasses)
-  local rootMeanSquaredError = math.sqrt(meanSquaredError)
-
-  local errors = {}
-  errors["mean_error"] = meanError
-  errors["mean_squared_error"] = meanSquaredError
-  errors["root_mean_squared_error"] = rootMeanSquaredError
-  return errors
 end
 
 
