@@ -162,6 +162,7 @@ function NNet:backProp( inputs, targets )
     local config = this.config[ layerNum ]
     local layerInputs = {}
     local outputs
+    prevErrorValues = {}
 
     if prevLayer then
       for n, neuron in ipairs( prevLayer ) do
