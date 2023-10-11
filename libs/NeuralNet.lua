@@ -176,6 +176,7 @@ function NNet:backProp( inputs, targets )
 
     --backprop neuron
     for n, neuron in ipairs( layer ) do
+      print(targets[n], neuron.value)
       local errorValue = errorValues[ n ] or (targets[n] - neuron.value)
       local learningRate = self.config[layerNum].learningRate or self.config.learningRate or .005
       learningRate = learningRate * self.learningFactor
