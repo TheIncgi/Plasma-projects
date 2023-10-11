@@ -45,13 +45,13 @@ function printScore(i)
   print( "====== Predictions ======")
   print( "[features]  ->  [predicted]  |  [labels]")
   for ex = 1, 4 do
-    print("[%1d, %1d] -> [%2.4d, %2.4d] | [%1d, %1d]":format(
+    print("[%1d, %1d]   ->   [%2.4f, %2.4f]     |     [%1d, %1d]":format(
       data.features[ex][1],
       data.features[ex][2],
       predictions[ex][1],
       predictions[ex][2],
       data.labels[ex][1],
-      data.labels[ex][2],
+      data.labels[ex][2]
     ))
   end
 end
