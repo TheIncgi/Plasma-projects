@@ -113,6 +113,7 @@ function NNet:new( layerConfig )
   obj.config = layerConfig
   obj.layers = {}
   obj.normalizer = Normalizer:new() --sync
+
   obj.learningDecay = math.max( 0, math.min( layerConfig.learningDecay or 1, 1 ) )
   obj.learningFactor = 1
 
@@ -155,7 +156,6 @@ function NNet:backProp( inputs, targets )
   local this = self
   local errorValues = {} -- as network value + errorValue = actual value
   local prevErrorValues -- accumulator of change requests from later networks
-
   for layerNum = #self.layers, 1, -1 do
     local layer = this.layers[ layerNum ]
     local prevLayer = this.layers[ layerNum-1 ]
@@ -174,22 +174,18 @@ function NNet:backProp( inputs, targets )
 
     outputs = self:getOutputs( layerNum )
 
-    --backprop neuron
     for n, neuron in ipairs( layer ) do
-      print(targets[n], neuron.value)
       local errorValue = errorValues[ n ] or (targets[n] - neuron.value)
       local learningRate = self.config[layerNum].learningRate or self.config.learningRate or .005
       learningRate = learningRate * self.learningFactor
       local errors = neuron:backProp( layerInputs, errorValue, learningRate ) 
-
-      --accumulate
-      for e, err in ipairs(errors) do
+      
+      for e, err in ipairs( errors ) do
         prevErrorValues[ e ] = (prevErrorValues[e] or 0) + err
       end
-
-      --transfer for next layer
-      errorValues = prevErrorValues
     end
+
+    errorValues = prevErrorValues
   end
 end
 
@@ -317,10 +313,10 @@ function Neuron:backProp( inputs, errAmount, learningRate )
   local this = self
   for weightNum = 0, #self.weights do
     local weight = this.weights[ weightNum ]
-      local input  = inputs[ weightNum ] or weightNum == 0 and weight --bias
-      local adjust = input * errAmount * slope * learningRate
-      this.weights[ weightNum ] = weight + adjust
-      prevErrors[ weightNum ] = adjust * weight
+    local input  = inputs[ weightNum ] or weightNum == 0 and weight --bias
+    local adjust = input * errAmount * slope * learningRate
+    this.weights[ weightNum ] = weight + adjust
+    prevErrors[ weightNum ] = adjust * weight
   end
   return prevErrors
 end
