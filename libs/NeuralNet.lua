@@ -320,6 +320,7 @@ function Neuron:backProp( inputs, errAmount, learningRate )
       this.weights[ weightNum ] = weight + adjust
       prevErrors[ weightNum ] = adjust * weight
   end
+  return prevErrors
 end
 
 
