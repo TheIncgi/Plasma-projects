@@ -133,47 +133,6 @@ end
 --returns value(s) from `task`
 function Async.sync( task )
   return Async.loop( task )
-  --print( "SYNC: "..tostring(task).." | "..task.label )
-	-- local args = {}
-	-- while #threads[Async.activeThread] > 0 do
-  --   local threadOnCall = Async.activeThread
-	-- 	local t = threads[Async.activeThread][1]
-  --   --print(" > ", t.label ,sourceLine(t.func), t.func)
-  --   local ok, value = pcall( t.func, table.unpack(args))
-  --   if not ok then
-  --     args = { Loader._val(value) }
-  --     local active = Async.activeThread
-  --     while #threads[active] > 0 do --skip until next task is errorHandler
-  --       local e = threads[Async.activeThread][1]
-  --       if et.errorHandler or e == task then
-  --         break
-  --       end
-  --       Async.removeTask( e )
-  --     end
-  --     if not e.errorHandler then
-  --       error(value)
-  --     end
-  --   else
-  --     args = {}
-  --     if value == false then
-  --       --
-  --     elseif type(value) == "table" then
-  --             Async.removeTask( t, threadOnCall )
-  --       if t == task then
-  --         return table.unpack( value )
-  --       end
-  --       args = value
-  --     elseif value == true then
-  --       Async.removeTask( t, threadOnCall )
-  --       if t == task then
-  --         return
-  --       end
-  --     else
-  --       error( "Invalid task result during sync ["..(t.label or "?").."]",2 )
-  --     end
-  --   end
-  --   error( "Exausted tasks during sync", 2 )
-  -- end
 end
 
 --async, return task
@@ -782,7 +741,7 @@ function Loader.cleanupTokens( tokens )
                 open = open-1
               end
             until open <= 0
-              and (not tokens[index-1] or tokens[index-1].value ~= "]")
+              and (not tokens[index-1] or tokens[index-1].value ~= "]" or (exp[1].type == "var" ))
               and (not tokens[index-1] or t.type~="var" or tokens[index-1].value~=".")
               and exp[1].type == "var"
                or (not tokens[index-1] or tokens[index-1].value==",")
