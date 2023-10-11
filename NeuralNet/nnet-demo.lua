@@ -19,13 +19,13 @@ config = {
 net = NNet:new( config )
 data = {
   epochs = 500,
-  features = {
+  features = { --aka input examples
       {0,0},
       {0,1},
       {1,0},
       {1,1}
   },
-  labels = {
+  labels = {  --aka answers for examples
       {0,0},
       {0,1},
       {0,1},
@@ -35,13 +35,25 @@ data = {
 
 function printScore(i)
   yield() --sync task queue with screen/tick
-  local score = net:scoreWithFeatures( data.features, data.labels )
+  local score, predictions = net:scoreWithFeatures( data.features, data.labels )
   print("Epoch: "..i)
   print( "Learning Rate Multiplier: ", net.learningFactor )
   print( "Learning Decay: ", net.learningDecay )
   print( "ME:   "..score.mean_error )
   print( "MSE:  "..score.mean_squared_error )
   print( "RMSE: "..score.root_mean_squared_error )
+  print( "====== Predictions ======")
+  print( "[features]  ->  [predicted]  |  [labels]")
+  for ex = 1, 4 do
+    print("[%1d, %1d] -> [%2.4d, %2.4d] | [%1d, %1d]":format(
+      data.features[ex][1],
+      data.features[ex][2],
+      predictions[ex][1],
+      predictions[ex][2],
+      data.labels[ex][1],
+      data.labels[ex][2],
+    ))
+  end
 end
 
 printScore( 0 )

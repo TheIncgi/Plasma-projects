@@ -156,7 +156,7 @@ function NNet:backProp( inputs, targets )
   local this = self
   local errorValues = {} -- as network value + errorValue = actual value
   local prevErrorValues -- accumulator of change requests from later networks
-  
+
   for layerNum = #self.layers, 1, -1 do
     local layer = this.layers[ layerNum ]
     local prevLayer = this.layers[ layerNum-1 ]
@@ -239,7 +239,7 @@ function NNet:scoreWithFeatures(features, labels)
     predictions[example] = self:getOutputs()
   end
 
-  return self:scoreWithPredictions(predictions, labels)
+  return self:scoreWithPredictions(predictions, labels), predictions
 end
 
 function NNet:scoreWithPredictions(predictions, labels)
