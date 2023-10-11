@@ -117,23 +117,23 @@ function NNet:new( layerConfig )
   obj.learningDecay = math.max( 0, math.min( layerConfig.learningDecay or 1, 1 ) )
   obj.learningFactor = 1
 
-  print"init NNet"
+  --print"init NNet"
   obj:_build() 
   return obj
 end
 
 function NNet:_build()
-  print"queue NNet:_build"
+  --print"queue NNet:_build"
   local this = self
   for layerNum, config in ipairs( this.config ) do
-    print("_build", layerNum)
+    --print("_build", layerNum)
     local layer = {}
     self.layers[ layerNum ] = layer
     for n = 1, config.size do
-      print("_build", layerNum, n)
-      print"createNeuron"
+      --print("_build", layerNum, n)
+      --print"createNeuron"
       local neuron = Neuron:new( config.activation or "signedSigmoid", config.inputs or #self.layers[ layerNum-1 ], config.size )
-      print"storeNeuron"
+      --print"storeNeuron"
       layer[ n ] = neuron
 		end
   end
@@ -156,6 +156,7 @@ function NNet:backProp( inputs, targets )
   local this = self
   local errorValues = {} -- as network value + errorValue = actual value
   local prevErrorValues -- accumulator of change requests from later networks
+  
   for layerNum = #self.layers, 1, -1 do
     local layer = this.layers[ layerNum ]
     local prevLayer = this.layers[ layerNum-1 ]
@@ -227,7 +228,21 @@ function NNet:decayLearningRate()
   self.learningFactor = self.learningFactor * self.learningDecay
 end
 
-function NNet:score(labels, predictions)
+--features[example][input]
+--labels[example][output]
+function NNet:scoreWithFeatures(features, labels)
+  local predictions = {}
+  assert(#features == #labels, "features and labels must have same number of examples, got lengths %d and %d":format(#features, #labels))
+
+  for example = 1, #features do
+    self:feedForward( features[example] )
+    predictions[example] = self:getOutputs()
+  end
+
+  return self:scoreWithPredictions(predictions, labels)
+end
+
+function NNet:scoreWithPredictions(predictions, labels)
   local numExamples = #labels
   local numClasses = #labels[1]
   local totalError = 0
