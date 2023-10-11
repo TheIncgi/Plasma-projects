@@ -160,7 +160,7 @@ function NNet:backProp( inputs, targets )
     local layer = this.layers[ layerNum ]
     local prevLayer = this.layers[ layerNum-1 ]
     local config = this.config[ layerNum ]
-    local layerInputs
+    local layerInputs = {}
     local outputs
 
     if prevLayer then
