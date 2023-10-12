@@ -5,10 +5,10 @@ activation = NNetModule.activation
 Neuron = NNetModule.Neuron
 
 config = {
-  learningDecay = .985,
+  learningDecay = .99,
   {
     size = 10,
-    learningRate = 10,
+    learningRate = 15,
     inputs = 2,
   },{
       size = 2,
