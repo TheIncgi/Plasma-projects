@@ -3,7 +3,7 @@ print"Loading Screen"
 require"TheIncgi/Plasma-Projects/main/libs/class"
 local Json = require"TheIncgi/Plasma-Projects/main/libs/Json"
 
-local Screen = class(_ROOT .. "/IK-Arm/screens/Screen")
+local Screen = class("TheIncgi/Plasma-Projects/IK-Arm/IK-Arm/screens/Screen")
 
 local _new = Screen.new
 function Screen:new( ... )
