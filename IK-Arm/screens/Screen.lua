@@ -1,3 +1,5 @@
+print"Loading Screen"
+
 require"TheIncgi/Plasma-Projects/main/libs/class"
 local Json = require"TheIncgi/Plasma-Projects/main/libs/Json"
 
@@ -13,7 +15,7 @@ end
 function Screen:onEvent(event, detail)
   if event == "draw" then
   elseif event == "button" then
-    
+
   end
 end
 

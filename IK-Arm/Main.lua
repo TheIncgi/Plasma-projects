@@ -1,18 +1,9 @@
 print"Setup..."
 
-if true then
-  debug.sethook(function(event, line, ...)
-    local args = table.concat({...}, ",") --call & return only
-    print("%s:%s {%s}":format(event, line or "", args))
-  end, "clr")
-end
-
+print"Loading MultiTaskBase"
 require("TheIncgi/Plasma-Projects/IK-Arm/libs/MultiTaskBase")
 
-require("TheIncgi/Plasma-Projects/IK-Arm/IK-Arm/UI")
+local UI = require("TheIncgi/Plasma-Projects/IK-Arm/IK-Arm/UI")
 
-
-
-
-
+print"Launching task manager"
 main() --runs MultiTaskBase
