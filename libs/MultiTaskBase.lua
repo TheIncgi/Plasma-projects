@@ -21,24 +21,6 @@ os.pullEvent = function(filters)
   return table.unpack(event)
 end
 
---example task, can also do this from `interrupt` command safely
-do  --limit scope
-  local task
-  task = coroutine.create(function()
-    print("Waiting for gamepad events")
-    while true do
-      local event, about, detail = os.pullEvent"gamepad"
-      print("EVENT:", event, about, detail and table.serialize(detail) or "")
-      if about == "back" then
-        break
-      end
-    end
-    print"EXIT!"
-  end)
-  coroutine.resume(task) --start task
-  _TASKS[ task ] = true --register task
-end
-
 --main loop, call this after you've setup your startup tasks
 function main()
   while true do

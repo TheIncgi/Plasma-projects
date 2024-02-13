@@ -1,5 +1,13 @@
+print"Setup..."
+
+if true do
+  debug.sethook(function(event, line, ...)
+    local args = table.concat({...}, ",") --call & return only
+    print("%s:%s {%s}":format(event, line or "", args))
+  end, "clr")
+end
+
 require("TheIncgi/Plasma-Projects/IK-Arm/libs/MultiTaskBase")
-_TASKS = {} --remove example task
 
 require("TheIncgi/Plasma-Projects/IK-Arm/IK-Arm/UI")
 
