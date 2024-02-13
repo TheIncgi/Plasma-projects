@@ -1,6 +1,6 @@
 print"Setup..."
 
-if true do
+if true then
   debug.sethook(function(event, line, ...)
     local args = table.concat({...}, ",") --call & return only
     print("%s:%s {%s}":format(event, line or "", args))
