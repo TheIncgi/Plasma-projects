@@ -1,3 +1,4 @@
+print"Loading Button (build 1)"
 local utils = require"TheIncgi/Plasma-projects/IK-Arm/libs/utils"
 
 local Button = class"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Button"

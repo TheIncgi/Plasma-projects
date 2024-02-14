@@ -1,5 +1,4 @@
-require"remoteRequire"
-require"common.class"
+print"Loading Text (build 1)"
 
 local utils = require"TheIncgi/Plasma-projects/IK-Arm/libs/utils"
 local Text = class"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Text"
