@@ -4574,7 +4574,7 @@ function Loader.run(src, withName)
                 --LOG(utils.serializeOrdered(DBG))
                 --Scope:new(name, line, parent, index, tableValue)
                 local scope = withName and Scope:new(withName, 1, Plasma.scope) or Plasma.scope
-                Loader.execute(instructions, Plasma.scope)
+                Loader.execute(instructions, scope)
                 return true
               end
             }
