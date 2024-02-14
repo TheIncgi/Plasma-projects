@@ -1,4 +1,4 @@
-VERSION = "Meta Lua 1.0.5"
+VERSION = "Meta Lua 1.0.5b"
 --Authors:
 --  TheIncgi
 -- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
@@ -4363,6 +4363,7 @@ end
 --===================================================================================
 --TODO block concurrent requests from coroutines
 function Net.require( path )
+  local shortPath = path
   path = path:sub(1,4) == "http" and path or 
           "https://raw.githubusercontent.com/"..path..".lua"
   local package = Plasma.scope:getRaw("package")
@@ -4399,7 +4400,7 @@ function Net.require( path )
           return false -- wait till next tick
         end
         if type(Net.result) == "string" then
-          Loader.run(Net.result) -- returns values
+          Loader.run(Net.result, shortPath) -- returns values
         else
           return {Loader._varargs(Loader._val(Net.result))}
         end
@@ -4530,7 +4531,7 @@ end
 ------------------
 --  interfaces  --
 ------------------
-function Loader.run(src)
+function Loader.run(src, withName)
   src = src or read_var"src"
   if src then
     DBG = {}
@@ -4571,6 +4572,8 @@ function Loader.run(src)
               func = function()
                 DBG.inst = instructions
                 --LOG(utils.serializeOrdered(DBG))
+                --Scope:new(name, line, parent, index, tableValue)
+                local scope = withName and Scope:new(withName, 1, Plasma.scope) or Plasma.scope
                 Loader.execute(instructions, Plasma.scope)
                 return true
               end
