@@ -1,4 +1,4 @@
-VERSION = "Meta Lua 1.0.4"
+VERSION = "Meta Lua 1.0.5"
 --Authors:
 --  TheIncgi
 -- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
@@ -4372,7 +4372,7 @@ function Net.require( path )
       local pkg = Loader.indexTable(loaded, Loader._val(path))
       if pkg.type ~= "nil" then
         Async.insertTasks({label = "require-loaded",func=function()
-          return {Loader._varargs(module)}
+          return {Loader._varargs(pkg)}
         end})
         return
       end
