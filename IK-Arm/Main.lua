@@ -1,5 +1,4 @@
-print"Setup... (build 3)"
-print("Check table: "..tostring(table.serialize))
+print"Setup... (build 4)"
 
 print"Loading MultiTaskBase"
 require("TheIncgi/Plasma-projects/IK-Arm/libs/MultiTaskBase")
