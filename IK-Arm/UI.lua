@@ -1,9 +1,11 @@
-print"Loading UI (build 3)"
+print"Loading UI (build 4)"
 local Screen = require("TheIncgi/Plasma-Projects/IK-Arm/IK-Arm/screens/Screen")
+
+local mainMenu = require"TheIncgi/Plasma-Projects/IK-Arm/IK-Arm/screens/MainMenu"
 
 local UI = {
   UI.screens = {
-    main = require"TheIncgi/Plasma-Projects/IK-Arm/IK-Arm/screens/MainMenu"
+    main = mainMenu
   }
 }
 UI.screen = UI.screens.main
