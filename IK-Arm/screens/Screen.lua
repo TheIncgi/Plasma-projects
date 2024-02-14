@@ -8,9 +8,9 @@ print"Create Screen class"
 local Screen = class("TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen")
 
 local _new = Screen.new
-function Screen:new( ... )
+function Screen:new( elems )
   local obj = _new( self )
-  obj["elements"] = { ... }
+  obj.elements = elems or {}
   return obj
 end
 
