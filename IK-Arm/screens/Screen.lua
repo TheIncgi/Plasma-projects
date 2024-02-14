@@ -1,4 +1,4 @@
-print"Loading Screen (build 7)"
+print"Loading Screen (build 8)"
 
 require"TheIncgi/Plasma-projects/main/libs/class"
 local Json = require"TheIncgi/Plasma-projects/main/libs/Json"
@@ -8,10 +8,10 @@ local Screen = class("TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen")
 
 Screen.WIDTH = 680
 Screen.HEIGHT = 512
-Screen.TOP = HEIGHT
+Screen.TOP = Screen.HEIGHT
 Screen.BOTTOM = 0
 Screen.LEFT = 0
-Screen.RIGHT = WIDTH
+Screen.RIGHT = Screen.WIDTH
 
 Screen.LEFT_DIR   = (Screen.LEFT < Screen.RIGHT) and -1 or  1
 Screen.RIGHT_DIR  = (Screen.LEFT < Screen.RIGHT) and  1 or -1
