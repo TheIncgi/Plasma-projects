@@ -1,11 +1,7 @@
-print("Creating Main Menu (build 3)")
-
-print(table.serialize(package.loaded))
+print("Creating Main Menu (build 4)")
 
 local Screen = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen"
 local Button = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Button"
-
-print(table.serialize(package.loaded))
 
 testButton = Button:new({
   x = 5,
