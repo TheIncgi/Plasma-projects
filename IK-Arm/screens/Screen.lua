@@ -10,7 +10,7 @@ local Screen = class("TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen")
 local _new = Screen.new
 function Screen:new( ... )
   local obj = _new( self )
-  obj.elements = { ... }
+  obj["elements"] = { ... }
   return obj
 end
 
