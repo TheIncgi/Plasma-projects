@@ -1,6 +1,6 @@
-local utils = require"TheIncgi/Plasma-Projects/IK-Arm/libs/utils"
+local utils = require"TheIncgi/Plasma-projects/IK-Arm/libs/utils"
 
-local Button = class"TheIncgi/Plasma-Projects/IK-Arm/IK-Arm/screens/Button"
+local Button = class"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Button"
 local _button_new = Button.new
 
 local colorToJson = utils.colorToJson

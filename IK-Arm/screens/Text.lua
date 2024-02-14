@@ -1,8 +1,8 @@
 require"remoteRequire"
 require"common.class"
 
-local utils = require"TheIncgi/Plasma-Projects/IK-Arm/libs/utils"
-local Text = class"TheIncgi/Plasma-Projects/IK-Arm/IK-Arm/screens/Text"
+local utils = require"TheIncgi/Plasma-projects/IK-Arm/libs/utils"
+local Text = class"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Text"
 
 local colorToJson = utils.colorToJson
 
