@@ -362,8 +362,9 @@ function Async.getHook()
 end
 
 --static method of getting active scope
-function Async.getScope( scope )
-  return Async.threads and Async.threads[ Async.activeThread ] and Async.threads[ Async.activeThread ].scope
+function Async.getScope( threadID )
+  threadID = threadID or Async.activeThread
+  return Async.threads and Async.threads[ threadID ] and Async.threads[ threadID ].scope
 end
 
 local insertTasks = Async.insertTasks
@@ -3705,6 +3706,17 @@ function Scope:addGlobals()
     error("feature requires metatables to be implemented!") --TODO
   end, false, false))
 
+  Loader.assignToTable( coroutineModule, Loader._val("current"), self:makeNativeFunc("current"), function()
+    return Loader._val( Async.activeThread, "thread" )
+  end, false, false)
+
+  Loader.assignToTable( coroutineModule, Loader._val("current"), self:makeNativeFunc("current"), function()
+    if Async.activeThread == 1 then
+      return Loader.constants["nil"]
+    end
+    return Loader._val( Async.activeThread, "thread" )
+  end, false, false)
+
   self:setRaw(false, "coroutine", coroutineModule)
   -- self:setNativeFunc( "",  )
 
@@ -3724,6 +3736,60 @@ function Scope:addGlobals()
 
   Loader.assignToTable( debugModule, Loader._val("sethook"), self:makeNativeFunc("sethook", function(callback, mode, count)
     Async.setHook( callback, mode and mode.value or "l", count and count.value )
+  end, false, false))
+
+  Loader.assignToTable( debugModule, Loader._val("getinfo"), self:makeNativeFunc("getinfo", function(...)
+    local args = {...}
+
+    local threadID, level, what
+    if #args == 2 then
+      threadID = Async.activeThread
+      level, what = args[1], args[2]
+    elseif #args == 3 then
+      if args[1].type ~= "thread" then
+        error("Expected arg 1 to be thread for debug.getinfo(<thread,> level, what), got "..args[1].type)
+      end
+      threadID = args[1].value
+      level, what = args[2], args[3]
+    else
+      error("Too few args for call to debug.getinfo(<thread,> level, what)")
+    end
+
+    local threadScope = Async.getScope( threadID )
+    for i = 2, level do
+      threadScope = threadScope.parent
+      if not threadScope then
+        return Loader.constants["nil"]
+      end
+    end
+
+    local result = Loader.newTable()
+    for x in what:gmatch"." do
+      if x == "f" or x == "*" then
+      end
+      if x == "l" or x == "*" then
+        Loader.assignToTable(result, Loader._val("currentline"), Loader._val( threadScope.line ))
+      end
+      if x == "L" or x == "*" then
+      end
+      if x == "n" or x == "*" then
+        Loader.assignToTable(result, Loader._val("name"), Loader._val(threadScope.name))
+        Loader.assignToTable(result, Loader._val("namewhat"), Loader._val("")) --TODO / Not implemented
+      end
+      if x == "S" or x == "*" then
+        -- Loader.assignToTable(result, Loader._val("source"), Loader._val("")) --TODO / Not implemented
+        -- Loader.assignToTable(result, Loader._val("short_src"), Loader._val("")) --TODO / Not implemented
+        -- Loader.assignToTable(result, Loader._val(""), Loader._val())
+        -- Loader.assignToTable(result, Loader._val("what"), Loader._val())
+      end
+      -- if x == "u" or x == "*" then
+      -- end
+      if x == "*" then
+        break
+      end
+    end
+
+    return result
   end, false, false))
 
   self:setRaw(false, "debug", debugModule)
