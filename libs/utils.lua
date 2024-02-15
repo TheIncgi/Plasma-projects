@@ -96,6 +96,9 @@ function utils.kwargs( argInfo, ... )
 
   local asserts = argInfo.asserts or {}
 
+  print("DEBUG: "..type(argInfo))
+  print(argInfo)
+  print(table.serialize(argInfo))
   for i, arg in ipairs(argInfo) do
     local argNames, argTypes, default, requiredTypes = argSplit( arg )
     
