@@ -1,4 +1,4 @@
-VERSION = "Meta Lua 1.0.5c"
+VERSION = "Meta Lua 1.0.5d"
 --Authors:
 --  TheIncgi
 -- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
@@ -908,6 +908,15 @@ function Loader.cleanupTokens( tokens )
           twicePrior.value ~= ")" and twicePrior.value ~= "}" and twicePrior.value ~= "]" ))
          or twicePrior == nil or (twicePrior and twicePrior.type=="keyword")) then
           prior.value = "-unm"
+        end
+      end
+
+      if infoToken.value == "-" or infoToken.value == "~" then
+        if not prior or (prior.type == "op" and not ({[")"]=true,["]"]=true,["}"]=true})[prior.value]) or prior.type == "assignment-set" then
+          infoToken.value = ({
+            ["-"]="-unm",
+            ["~"]="~ubn"
+          })[infoToken.value]
         end
       end
 

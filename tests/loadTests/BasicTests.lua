@@ -245,4 +245,24 @@ do
   test:var_eq(1,"len: 3")
 end
 
+-----------------------
+-- unm table element --
+-----------------------
+do
+  --given
+  local src = [=[
+    t = {x=45}
+    u = -t.x
+    return u
+  ]=]
+  local env = Env:new()
+  local libs = testUtils.libs()
+  local common = testUtils.common(env)
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local test = testUtils.codeTest( tester, "unm table element", env, libs, src )
+
+  test:var_eq(1,-45)
+end
+
 return tester
