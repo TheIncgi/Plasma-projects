@@ -1,4 +1,4 @@
-VERSION = "Meta Lua 1.0.5e"
+VERSION = "Meta Lua 1.0.5f"
 --Authors:
 --  TheIncgi
 -- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
@@ -1096,7 +1096,12 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma,
           Loader.buildInstructions(tokens, instStart, token.blockLevel) --returns instructions, nextIndex
           requiresValue = false
           return --continue into inserted tasks
-        else          
+        elseif tableMode and token.type == "assignment-set" and #token.value == 2 then
+          local a = table.remove( token.value,1 )
+          table.insert(tokens, index, a)
+          table.insert(tokens, index+1, {type = "op", value = ",", line = a.line})
+          requiresValue = false
+        else
           requiresValue = false
         end
       elseif token.type == "op" then
@@ -4157,6 +4162,9 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
                 top:setAsync( inst.isLocal, target.name, fval )
               else
                 local nameVal = Loader._val(target.name)
+                if target.place.value == nil then
+                  error("table may be missing for function '"..inst.name.."' on line "..inst.line)
+                end
                 target.place.value[nameVal] = fval
                 Loader.tableIndexes[target.place.value][target.name] = nameVal
               end

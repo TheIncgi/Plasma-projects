@@ -83,4 +83,33 @@ do
   test:var_eq(1, 3)
 end
 
+-----------
+-- {x=(foo or bar),y=...} --
+-----------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local utils = {}
+    function utils.darken(clr, f )
+      f = f or .5
+      return {
+        r = (clr.r or clr[1])*f, 
+        g = (clr.g or clr[2])*f, 
+        b = (clr.b or clr[2])*f
+      }
+    end
+
+    return "ok"
+  ]=]
+
+  local test = testUtils.codeTest(tester, "table with ()", env, libs, src)
+
+  test:var_eq(1, "ok")
+end
+
+
 return tester
