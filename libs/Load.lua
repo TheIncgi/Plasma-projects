@@ -3791,6 +3791,7 @@ function Scope:addGlobals()
 
     return result
   end, false, false))
+  Loader.assignToTable( debugModule, Loader._val("info"), Loader.indexTable(debugModule, Loader._val("getinfo"))) --alias
 
   self:setRaw(false, "debug", debugModule)
 end
