@@ -1,4 +1,4 @@
-VERSION = "Meta Lua 1.0.5h"
+VERSION = "Meta Lua 1.0.5i"
 --Authors:
 --  TheIncgi
 -- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
@@ -3744,13 +3744,13 @@ function Scope:addGlobals()
     local threadID, level, what
     if #args == 2 then
       threadID = Async.activeThread
-      level, what = args[1], args[2]
+      level, what = args[1].value, args[2].value
     elseif #args == 3 then
       if args[1].type ~= "thread" then
         error("Expected arg 1 to be thread for debug.getinfo(<thread,> level, what), got "..args[1].type)
       end
       threadID = args[1].value
-      level, what = args[2], args[3]
+      level, what = args[2].value, args[3].value
     else
       error("Too few args for call to debug.getinfo(<thread,> level, what)")
     end
