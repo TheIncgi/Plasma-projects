@@ -1,4 +1,4 @@
-VERSION = "Meta Lua 1.0.5l"
+VERSION = "Meta Lua 1.0.5m"
 --Authors:
 --  TheIncgi
 -- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
@@ -3381,7 +3381,10 @@ function Scope:addGlobals()
     end
   end, false, false )
 
-  self:setNativeFunc( "type", function( value ) return value.type end, false, nil )
+  self:setNativeFunc( "type", function( value ) 
+    if value.type=="num" then return "number" end
+    return value.type 
+  end, false, nil )
   self:setNativeFunc( "getmetatable", function( tblValue )
     local tbl, protected = Loader.getmetatable( tblValue ) --wrapped to block second arg
     return tbl, Loader._val(protected)
