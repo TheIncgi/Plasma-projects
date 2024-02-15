@@ -265,7 +265,11 @@ function utils.computeHighlight( r, g, b )
 end
 function utils.darken(clr, f )
   f = f or .5
-  return {r = (clr.r or clr[1])*f, g=(clr.g or clr[2])*f, b=(clr.b or clr[2])*f}
+  return {
+    r = (clr.r or clr[1])*f, 
+    g = (clr.g or clr[2])*f, 
+    b = (clr.b or clr[2])*f
+  }
 end
 
 return utils
