@@ -3506,6 +3506,11 @@ function Scope:addGlobals()
     end
     error( msg.value )
   end, false, false)
+  self:setNativeFunc( "select", function( index, ... )
+    local args = {...}
+    return local Loader._varargs( table.unpack(args, index.value) )
+  end, false, false)
+  
   self:setRaw(false, "_VERSION", Loader._val(VERSION))
 
   local authors = Loader.newTable()
