@@ -100,7 +100,7 @@ function utils.kwargs( argInfo, ... )
   print(argInfo)
   print(table.serialize(argInfo))
   for i, arg in ipairs(argInfo) do
-    print("ARG: "..i.." - "..type(arg))
+    print("ARG: "..i.." - "..type(arg).." = "..tostring(arg))
     local argNames, argTypes, default, requiredTypes = argSplit( arg )
     
     if not argNames[1] then
