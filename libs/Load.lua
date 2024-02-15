@@ -1,4 +1,4 @@
-VERSION = "Meta Lua 1.0.5d"
+VERSION = "Meta Lua 1.0.5e"
 --Authors:
 --  TheIncgi
 -- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
@@ -818,7 +818,7 @@ function Loader.cleanupTokens( tokens )
           --end
           --table.remove(tokens, index)
           return --continue
-
+        
         elseif token == "(" or token == "{" then -- " doesn't
           if prior and (
               (prior.type == "var")
@@ -1278,7 +1278,7 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
         return --continue
       elseif localVar and token.type == "var" then
         local vars = {token}
-        while tokens[index+1].value == "," and tokens[index+1].type == "var" do
+        while tokens[index+1].value == "," and tokens[index+2].type == "var" do
           table.insert(vars, tokens[index + 2])
           index = index + 2
         end

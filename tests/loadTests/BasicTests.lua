@@ -265,4 +265,27 @@ do
   test:var_eq(1,-45)
 end
 
+-------------------
+-- declare local --
+-------------------
+do
+  --given
+  local src = [=[
+    x = 15
+    do
+      local x,y,z
+      x = 10
+    end
+    return x
+  ]=]
+  local env = Env:new()
+  local libs = testUtils.libs()
+  local common = testUtils.common(env)
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local test = testUtils.codeTest( tester, "unm table element", env, libs, src )
+
+  test:var_eq(1,15)
+end
+
 return tester
