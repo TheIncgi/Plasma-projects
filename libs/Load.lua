@@ -1,4 +1,4 @@
-VERSION = "Meta Lua 1.0.5k"
+VERSION = "Meta Lua 1.0.5l"
 --Authors:
 --  TheIncgi
 -- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
@@ -3508,6 +3508,9 @@ function Scope:addGlobals()
   end, false, false)
   self:setNativeFunc( "select", function( index, ... )
     local args = {...}
+    if index.value == "#" then
+      return Loader._val(#args)
+    end
     return Loader._varargs( table.unpack(args, index.value) )
   end, false, false)
   
