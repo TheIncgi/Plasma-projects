@@ -1,4 +1,4 @@
-print"Loading Screen (build 11)"
+print"Loading Screen (build 12)"
 
 require"TheIncgi/Plasma-projects/main/libs/class"
 local Json = require"TheIncgi/Plasma-projects/main/libs/Json"
@@ -36,7 +36,7 @@ end
 
 function Screen:serialize()
   local json = Json.static.JsonArray:new()
-  
+  print(#self.elements.." elements")
   for i, elem in ipairs(self.elements) do
     json:put( elem:build() )
   end
