@@ -1,5 +1,6 @@
-print"Loading Button (build 1)"
+print"Loading Button (build 2)"
 local utils = require"TheIncgi/Plasma-projects/IK-Arm/libs/utils"
+local Json = require"TheIncgi/Plasma-projects/main/libs/Json"
 
 local Button = class"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Button"
 local _button_new = Button.new
@@ -53,7 +54,7 @@ function Button:new( ... )
 end
 
 function Button:build()
-  local obj = JsonObject:new()
+  local obj = Json.static.JsonObject:new()
   obj:put("id",self.UUID)
   obj:put("x", self.x)
   obj:put("y", self.y)
