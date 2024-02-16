@@ -99,6 +99,7 @@ function utils.kwargs( argInfo, ... )
   print("DEBUG: "..type(argInfo))
   print(argInfo)
   print"Serialized:"
+  yield()
   print(table.serialize(argInfo))
   print"For in ipairs.."
   for i, arg in ipairs(argInfo) do
