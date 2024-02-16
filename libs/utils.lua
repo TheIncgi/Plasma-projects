@@ -101,6 +101,7 @@ function utils.kwargs( argInfo, ... )
   print"Serialized:"
   yield()
   print(table.serialize(argInfo))
+  print("2: "..table.serialize(argInfo[2]))
   print"For in ipairs.."
   for i, arg in ipairs(argInfo) do
     print("ARG: "..i.." is type "..type(arg).." = "..table.serialize(arg))
