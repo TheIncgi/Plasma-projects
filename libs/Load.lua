@@ -4317,6 +4317,7 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
         local t = top
         while not t.isLoop and t.parent do
           t = t.parent
+          table.remove(callStack) --pop
         end
         if not t.isLoop then
           error("break statment is not in a loop")
