@@ -35,7 +35,7 @@ function Screen:onEvent(event, detail)
 end
 
 function Screen:serialize()
-  local json = Json.static.Array:new()
+  local json = Json.static.JsonArray:new()
   
   for i, elem in ipairs(self.elements) do
     json:put( elem:build() )
