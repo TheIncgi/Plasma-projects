@@ -9,19 +9,23 @@ local UI = {
 }
 UI.screen = UI.screens.main
 
-function UI.printMenu()
-  print"F1 - Collect Data"
-  print"F2 - Train"
-  print"F3 - Test"
+function UI.render()
+  -- print"F1 - Collect Data"
+  -- print"F2 - Train"
+  -- print"F3 - Test"
+  if UI.screen then
+    UI.screen:onEvent("draw")
+  end
 end
 
 function UI.eventDispatcher()
   print("UI event dispatcher started")
+  UI.render()
   while true do
     local event, detail = os.pullEvent({"key","ui"})
     print("[UI EVENT]:"..event)
     if UI.screen then
-      UI.screen.onEvent( event, detail )
+      UI.screen:onEvent( event, detail )
     end
   end
 end

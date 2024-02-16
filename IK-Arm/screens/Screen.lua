@@ -27,6 +27,7 @@ end
 
 function Screen:onEvent(event, detail)
   if event == "draw" then
+    output( self:serialize(), 1 )
   elseif event == "button" then
 
   end
