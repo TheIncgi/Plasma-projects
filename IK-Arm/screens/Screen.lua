@@ -1,4 +1,4 @@
-print"Loading Screen (build 12)"
+print"Loading Screen (build 13)"
 
 require"TheIncgi/Plasma-projects/main/libs/class"
 local Json = require"TheIncgi/Plasma-projects/main/libs/Json"
@@ -19,7 +19,7 @@ Screen.TOP_DIR    = (Screen.BOTTOM < Screen.TOP) and  1 or -1
 Screen.BOTTOM_DIR = (Screen.BOTTOM < Screen.TOP) and -1 or  1
 
 local _new = Screen.new
-function Screen:new( elems )
+function Screen:new( ... )
   local obj = _new( self )
   obj.elements = {...}
   return obj
