@@ -1,4 +1,4 @@
-print"Loading UI (build 10)"
+print"Loading UI (build 11)"
 local Screen = require("TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen")
 
 print"Loading menus..."
@@ -16,6 +16,8 @@ function UI.draw()
   if UI.screen then
     print"Force drawing UI..."
     UI.screen:onEvent("draw")
+  else
+    print"<color=#FF8800>MISSING SCREEN</color>"
   end
 end
 
