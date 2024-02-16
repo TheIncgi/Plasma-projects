@@ -95,16 +95,9 @@ function utils.kwargs( argInfo, ... )
   local aliasLookup = {}
 
   local asserts = argInfo.asserts or {}
-
-  print("DEBUG: "..type(argInfo))
-  print(argInfo)
-  print"Serialized:"
-  yield()
-  print(table.serialize(argInfo))
-  print("2: "..table.serialize(argInfo[2]))
-  print"For in ipairs.."
+  
   for i, arg in ipairs(argInfo) do
-    print("ARG: "..i.." is type "..type(arg).." = "..table.serialize(arg))
+    
     local argNames, argTypes, default, requiredTypes = argSplit( arg )
     
     if not argNames[1] then
