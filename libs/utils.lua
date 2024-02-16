@@ -98,7 +98,9 @@ function utils.kwargs( argInfo, ... )
 
   print("DEBUG: "..type(argInfo))
   print(argInfo)
+  print"Serialized:"
   print(table.serialize(argInfo))
+  print"For in ipairs.."
   for i, arg in ipairs(argInfo) do
     print("ARG: "..i.." is type "..type(arg).." = "..table.serialize(arg))
     local argNames, argTypes, default, requiredTypes = argSplit( arg )
