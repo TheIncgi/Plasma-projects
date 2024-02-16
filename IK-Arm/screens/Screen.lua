@@ -1,4 +1,4 @@
-print"Loading Screen (build 13)"
+print"Loading Screen (build 14)"
 
 require"TheIncgi/Plasma-projects/main/libs/class"
 local Json = require"TheIncgi/Plasma-projects/main/libs/Json"
@@ -28,7 +28,7 @@ end
 function Screen:onEvent(event, detail)
   if event == "draw" then
     print( "DOC: ", self:serialize())
-    output( self:serialize(), 1 )
+    output( self:serialize(), 2 )
   elseif event == "button" then
 
   end
