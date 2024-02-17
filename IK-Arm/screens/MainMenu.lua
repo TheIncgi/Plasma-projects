@@ -21,7 +21,7 @@ title = Text:new({
   text = "Main Menu",
   id = 1
 })
-y = y + (elemHeight + paddingSize* Screen.BOTTOM_DIR)
+y = y + (elemHeight + paddingSize) * Screen.BOTTOM_DIR
 
 dataButton = Button:new({
   x = x,
@@ -31,7 +31,7 @@ dataButton = Button:new({
   text = "Gen Data",
   id = 2
 })
-y = y + (elemHeight + paddingSize * Screen.BOTTOM_DIR)
+y = y + (elemHeight + paddingSize) * Screen.BOTTOM_DIR
 
 trainButton = Button:new({
   x = x,
@@ -41,7 +41,7 @@ trainButton = Button:new({
   text = "Train",
   id = 3
 })
-y = y + (elemHeight + paddingSize * Screen.BOTTOM_DIR)
+y = y + (elemHeight + paddingSize) * Screen.BOTTOM_DIR
 
 testButton = Button:new({
   x = x,
