@@ -1,4 +1,4 @@
-print"Loading Text (build 3)"
+print"Loading Text (build 4)"
 
 local utils = require"TheIncgi/Plasma-projects/IK-Arm/libs/utils"
 local Json = require"TheIncgi/Plasma-projects/main/libs/Json"
@@ -19,8 +19,8 @@ function Text:new( ... )
   local args = utils.kwargs({
     {x="number"},
     {y="number"},
-    {width="number",nil,"wid","w"},
-    {height="number",nil,"hei","h"},
+    {width="number",nil,"wid","w", "x2"},
+    {height="number",nil,"hei","h", "y2"},
     {textColor="table",{r=1,g=1,b=1}},
     {text="string",""},
     {fontSize="number", 60},
@@ -31,10 +31,21 @@ function Text:new( ... )
   },...)
 
   obj.id = args.UUID
-  obj.x = args.x
-  obj.y = args.y
-  obj.width = args.width
-  obj.height = args.height
+  if args"width" == "x2" then
+    obj.x = math.min(args.x, args.width)
+    obj.width = math.abs(args.width - args.x)
+  else
+    obj.x = args.x
+    obj.width = args.width
+  end
+  
+  if args"height" == "y2" then
+    obj.y = math.min(args.y, args.height)
+    obj.height = math.abs(args.height - args.y)
+  else
+    obj.y = args.y
+    obj.height = args.height
+  end
   obj.textColor = args.textColor
   obj.text = args.text
   obj.fontSize = args.fontSize
