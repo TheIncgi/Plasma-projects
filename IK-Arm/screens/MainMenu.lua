@@ -1,4 +1,4 @@
-print("Creating Main Menu (build 11)")
+print("Creating Main Menu (build 12)")
 
 local Screen = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen"
 local Button = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Button"
@@ -13,7 +13,7 @@ local halfWidth = Screen.WIDTH / 2
 
 local y = Screen.TOP + paddingSize * Screen.BOTTOM_DIR
 print("%.2f = %.2f + %.2f * %.0f":format(y, Screen.TOP, paddingSize, Screen.BOTTOM_DIR))
-print(totring(y)..", "..tostring(elemHeight).." "..toString(Screen.BOTTOM_DIR))
+print(totring(y)..", "..tostring(elemHeight).." "..tostring(Screen.BOTTOM_DIR))
 title = Text:new({
   x = x,
   y = y,
