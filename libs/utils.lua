@@ -265,7 +265,7 @@ function utils.computeHighlight( r, g, b )
   local h, s, v = utils.rgbToHsv( r, g, b )
   v = 1-((1-v)/2)
   s = s/2
-  return hsvToRgb( h, s, v )
+  return utils.hsvToRgb( h, s, v )
 end
 function utils.darken(clr, f )
   f = f or .5
