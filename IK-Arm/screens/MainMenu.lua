@@ -13,7 +13,7 @@ local halfWidth = Screen.WIDTH / 2
 
 local y = Screen.TOP + paddingSize * Screen.BOTTOM_DIR
 print("%.2f = %.2f + %.2f * %.0f":format(y, Screen.TOP, paddingSize, Screen.BOTTOM_DIR))
-print(totring(y)..", "..tostring(elemHeight).." "..tooString(Screen.BOTTOM_DIR))
+print(totring(y)..", "..tostring(elemHeight).." "..toString(Screen.BOTTOM_DIR))
 title = Text:new({
   x = x,
   y = y,
