@@ -1,8 +1,9 @@
-print"Loading Text (build 1)"
+print"Loading Text (build 2)"
 
 local utils = require"TheIncgi/Plasma-projects/IK-Arm/libs/utils"
-local Text = class"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Text"
+local Json = require"TheIncgi/Plasma-projects/main/libs/Json"
 
+local Text = class"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Text"
 local colorToJson = utils.colorToJson
 
 Text.LEFT = 0
@@ -45,7 +46,7 @@ function Text:new( ... )
 end
 
 function Text:build()
-  local obj = JsonObject:new()
+  local obj = Json.static.JsonObject:new()
   obj:put("id",self.UUID)
   obj:put("x", self.x)
   obj:put("y", self.y)

@@ -12,13 +12,13 @@ local elemHeight = (reducedHeight - math.max(0,paddingSize*nElements-1) ) / nEle
 local halfWidth = Screen.WIDTH / 2
 
 local y = paddingSize
-title = Text:new{
+title = Text:new({
   x = x,
   y = y,
   width = halfWidth,
   height = elemHeight,
   text = "Main Menu"
-}
+})
 y = y + elemHeight + paddingSize
 
 dataButton = Button:new({
