@@ -1,4 +1,4 @@
-print"Loading Button (build 2)"
+print"Loading Button (build 3)"
 local utils = require"TheIncgi/Plasma-projects/IK-Arm/libs/utils"
 local Json = require"TheIncgi/Plasma-projects/main/libs/Json"
 
@@ -22,10 +22,11 @@ function Button:new( ... )
     {payload="string",""},
     {visible="boolean",true},
     {onClick={"function","nil"}, nil, "onPress"},
-    {onRelease={"function","nil"},nil}
+    {onRelease={"function","nil"},nil},
+    {UUID="number",nil,"uuid", "id"}
   },...)
 
-  obj.id = false
+  obj.id = args.UUID
   obj.x = args.x
   obj.y = args.y
   obj.width = args.width

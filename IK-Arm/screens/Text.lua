@@ -1,4 +1,4 @@
-print"Loading Text (build 2)"
+print"Loading Text (build 3)"
 
 local utils = require"TheIncgi/Plasma-projects/IK-Arm/libs/utils"
 local Json = require"TheIncgi/Plasma-projects/main/libs/Json"
@@ -26,10 +26,11 @@ function Text:new( ... )
     {fontSize="number", 60},
     {vertAlign="number",1,"vAlign"},
     {horzAlign="number",1,"hAlign"},
-    {visible="boolean",true}
+    {visible="boolean",true},
+    {UUID="number",nil,"uuid", "id"}
   },...)
 
-  obj.id = false
+  obj.id = args.UUID
   obj.x = args.x
   obj.y = args.y
   obj.width = args.width
@@ -39,7 +40,7 @@ function Text:new( ... )
   obj.fontSize = args.fontSize
   obj.highlightColor = args.highlightColor
   obj.hAlign = args.horzAlign
-  obj.vAlign = args.vAlign
+  obj.vAlign = args.vertAlign
   obj.visible = args.visible
 
   return obj
