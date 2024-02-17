@@ -111,5 +111,33 @@ do
   test:var_eq(1, "ok")
 end
 
+----------------------------------
+-- {} with assignment set spill --
+----------------------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  -- common.printProxy.target = print
+
+  local src = [==[
+   z = {value = 5}
+
+    zz = {
+      r = z["value"],
+      y2 = 5 * z.value,
+      text = "Main Menu",
+    }
+
+    print"ok"
+  ]==]
+    
+  local test = testUtils.codeTest(tester, "{} with assignment set spill", env, libs, src)
+  
+  common.printProxy{"ok"}.exact()
+end
+
 
 return tester

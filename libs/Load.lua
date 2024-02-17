@@ -1099,8 +1099,27 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma,
           return --continue into inserted tasks
         elseif tableMode and token.type == "assignment-set" and #token.value == 2 then
           local a = table.remove( token.value,1 )
-          table.insert(tokens, index, a)
-          table.insert(tokens, index+1, {type = "op", value = ",", line = a.line})
+          
+          if a.infix then
+            local i = index
+            for k,v in ipairs( a.infix.place ) do
+              v.line = v.line or token.line
+              table.insert(tokens, i, v)
+              i = i+1
+            end
+            table.insert(tokens, i, {type = "op", value = "[", line = token.line, index = true})
+            for k,v in ipairs( a.infix.index ) do
+              v.line = v.line or token.line
+              table.insert(tokens, i+1, v)
+              i = i+1
+            end
+            table.insert(tokens, i+1, {type = "op", value = "]", line = token.line})
+            table.insert(tokens, i+2, {type = "op", value = ",", line = token.line})
+          else
+            table.insert(tokens, index, a)
+            table.insert(tokens, index+1, {type = "op", value = ",", line = a.line})
+          end
+          
           requiresValue = false
         else
           requiresValue = false
