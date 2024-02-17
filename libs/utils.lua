@@ -262,7 +262,7 @@ function utils.computeHighlight( r, g, b )
     return utils.computeHighlight( r.r or r[1], r.g or r[2], r.b or r[3] )
   end
   if type(r)~="number" then error("expected numbers",2) end
-  local h, s, v = rgbToHsv( r, g, b )
+  local h, s, v = utils.rgbToHsv( r, g, b )
   v = 1-((1-v)/2)
   s = s/2
   return hsvToRgb( h, s, v )
