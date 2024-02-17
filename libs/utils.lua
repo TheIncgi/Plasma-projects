@@ -252,14 +252,14 @@ function utils.hsvToRgb(h, s, v, a)
 end
 
 function utils.colorToJson( color, name, addToJson )
-  addToJson:put(name.."R",color.r or color[1] or 1)
-  addToJson:put(name.."G",color.g or color[2] or 1)
-  addToJson:put(name.."B",color.b or color[3] or 1)
+  addToJson:put(name.."R", color.r or color[1] or 1)
+  addToJson:put(name.."G", color.g or color[2] or 1)
+  addToJson:put(name.."B", color.b or color[3] or 1)
 end
 
 function utils.computeHighlight( r, g, b )
   if type(r) == "table" then
-    return utils.computeHighlight( r.r or r[1], r.g or r[2], r.b or r[3] )
+    return {utils.computeHighlight( r.r or r[1], r.g or r[2], r.b or r[3] )}
   end
   if type(r)~="number" then error("expected numbers",2) end
   local h, s, v = utils.rgbToHsv( r, g, b )
