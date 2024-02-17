@@ -34,7 +34,7 @@ function Button:new( ... )
   obj.text = args.text
   obj.fontSize = args.fontSize
   obj.backgroundColor = args.backgroundColor
-  obj.highlightColor = args.highlightColor
+  obj.highlightColor = args.highlightColor or utils.computeHighlight(args.backgroundColor)
   obj.payload = args.payload
   obj.visible = args.visible
   obj.onClick = args.onClick

@@ -1,4 +1,4 @@
-print("Creating Main Menu (build 6)")
+print("Creating Main Menu (build 7)")
 
 local Screen = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen"
 local Button = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Button"
@@ -11,7 +11,7 @@ local nElements = 4
 local elemHeight = (reducedHeight - math.max(0,paddingSize*nElements-1) ) / nElements
 local halfWidth = Screen.WIDTH / 2
 
-local y = paddingSize
+local y = Screen.TOP + paddingSize * Screen.BOTTOM_DIR
 title = Text:new({
   x = x,
   y = y,
@@ -19,7 +19,7 @@ title = Text:new({
   height = elemHeight,
   text = "Main Menu"
 })
-y = y + elemHeight + paddingSize
+y = y + elemHeight + paddingSize* Screen.BOTTOM_DIR
 
 dataButton = Button:new({
   x = x,
@@ -28,7 +28,7 @@ dataButton = Button:new({
   height = elemHeight,
   text = "Gen Data"
 })
-y = y + elemHeight + paddingSize
+y = y + elemHeight + paddingSize * Screen.BOTTOM_DIR
 
 trainButton = Button:new({
   x = x,
@@ -37,7 +37,7 @@ trainButton = Button:new({
   height = elemHeight,
   text = "Train"
 })
-y = y + elemHeight + paddingSize
+y = y + elemHeight + paddingSize * Screen.BOTTOM_DIR
 
 testButton = Button:new({
   x = x,
@@ -47,6 +47,6 @@ testButton = Button:new({
   text = "Test"
 })
 
-local mainMenu = Screen:new(dataButton, trainButton, testButton)
+local mainMenu = Screen:new(title,dataButton, trainButton, testButton)
 
 return mainMenu
