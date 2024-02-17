@@ -12,6 +12,7 @@ local elemHeight = (reducedHeight - math.max(0,paddingSize*nElements-1) ) / nEle
 local halfWidth = Screen.WIDTH / 2
 
 local y = Screen.TOP + paddingSize * Screen.BOTTOM_DIR
+print("%.2f = %.2f + %.2f * %.0f":format(y, Screen.TOP, paddingSize, Screen.BOTTOM_DIR))
 title = Text:new({
   x = x,
   y = y,
