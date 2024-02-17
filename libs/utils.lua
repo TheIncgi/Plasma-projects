@@ -95,7 +95,7 @@ function utils.kwargs( argInfo, ... )
   local aliasLookup = {}
 
   local asserts = argInfo.asserts or {}
-  
+
   for i, arg in ipairs(argInfo) do
     
     local argNames, argTypes, default, requiredTypes = argSplit( arg )
@@ -271,6 +271,10 @@ function utils.darken(clr, f )
     g = (clr.g or clr[2])*f, 
     b = (clr.b or clr[2])*f
   }
+end
+
+function utils.mathMap(x, a, b, c, d)
+  return (x-a) * (d-c) / (b-a) + c
 end
 
 return utils

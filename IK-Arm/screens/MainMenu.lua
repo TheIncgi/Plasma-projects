@@ -1,10 +1,10 @@
-print("Creating Main Menu (build 5)")
+print("Creating Main Menu (build 6)")
 
 local Screen = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen"
 local Button = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Button"
 local Text   = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Text"
 
-local x = (Screen.WIDTH / 4) - (Screen.WIDTH / 2)
+local x = (Screen.WIDTH / 2) - (Screen.WIDTH / 4)
 local reducedHeight = (Screen.HEIGHT * .9)
 local paddingSize = (Screen.HEIGHT * .02)
 local nElements = 4
