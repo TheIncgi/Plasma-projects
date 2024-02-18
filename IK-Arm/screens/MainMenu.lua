@@ -1,4 +1,4 @@
-print("Creating Main Menu (build 19)")
+print("Creating Main Menu (build 20)")
 
 local Screen = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen"
 local Button = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Button"
@@ -76,6 +76,7 @@ function MainMenu:new( ... )
   table.insert(obj.elements, obj.trainButton)
   table.insert(obj.elements, obj.testButton)
 
+  return obj
 end
 
 function MainMenu:updateSampleCount()
