@@ -112,5 +112,29 @@ do
   test:var_eq(1, 100)
 end
 
+-------------------
+-- varargs upval --
+-------------------
+do
+  local src = [=[
+    function a( ... )
+      return function()
+        return ...
+      end
+    end
+
+    return a( 5 )()
+  ]=]
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+    
+  --test code
+  local test = testUtils.codeTest(tester, "varargs upval", env, libs, src)
+  
+  test:var_eq(1, 5)
+end
+
 
 return tester

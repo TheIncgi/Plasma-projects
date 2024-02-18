@@ -4141,7 +4141,9 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
     {
       label = "Loader.execute - setup",
       func = function()
-        callStack[1]:setVarargs(prgmArgs)
+        if not callStack[1].parent then
+          callStack[1]:setVarargs(prgmArgs)
+        end
         return true
       end
     },
