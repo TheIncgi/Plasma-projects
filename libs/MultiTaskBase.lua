@@ -15,16 +15,23 @@ os.pullEvent = function(filters)
   end
   local event
   repeat
-    trigger(5)
+    --trigger(5)
     event = coroutine.yield() or {}
   until filters[event[1]]
   return table.unpack(event)
+end
+
+--allow all coroutines to yield independently
+local nativeYield = yield
+function yield()
+  os.pullEvent("tick")
 end
 
 --main loop, call this after you've setup your startup tasks
 function main()
   while true do
     local toRemove = {} --don't alter while itterating
+    os.queueEvent("tick")
     while _EVENTS[1] do --while events in queue
       local event = table.remove(_EVENTS, 1)      --remove first
       for task in pairs(_TASKS) do                --all threads get the event
@@ -41,6 +48,6 @@ function main()
       end
     end
 
-    yield() --wait for next tick
+    nativeYield() --wait for next tick
   end
 end
