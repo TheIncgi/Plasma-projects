@@ -1,4 +1,4 @@
-print("Creating Main Menu (build 20)")
+print("Creating Main Menu (build 21)")
 
 local Screen = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen"
 local Button = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Button"
@@ -88,6 +88,7 @@ function MainMenu:onEvent(event, ...)
   if event == "updateSampleCount" then
     --TODO
   else
+    print("SELF: "..table.serialize(self))
     self:super().onEvent( self, event, ... )
   end
 end
