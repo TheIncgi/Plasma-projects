@@ -1,4 +1,4 @@
-VERSION = "Meta Lua 1.0.5o"
+VERSION = "Meta Lua 1.0.5q"
 --Authors:
 --  TheIncgi
 -- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
@@ -2584,7 +2584,7 @@ function Loader.eval( postfix, scope, line )
               table.insert(stack, val(a ~= b))
               return --continue
             elseif a.type == "function" or b.type == "function" then --xor
-              table.insert(stack, Loaders.constants["false"])
+              table.insert(stack, Loader.constants["false"])
               return --continue
             end
 
