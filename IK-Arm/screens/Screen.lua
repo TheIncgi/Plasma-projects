@@ -26,7 +26,6 @@ function Screen:new( ... )
 end
 
 function Screen:onEvent(event, ...)
-
   if event == "draw" then
     --print( "DOC: ", self:serialize())
     output( self:serialize(), 2 )
@@ -47,7 +46,6 @@ end
 
 function Screen:serialize()
   local json = Json.static.JsonArray:new()
-  print(#self.elements.." elements")
   for i, elem in ipairs(self.elements) do
     json:put( elem:build() )
   end
