@@ -1,4 +1,4 @@
-print"Loading Button (build 4)"
+print"Loading Button (build 5)"
 local utils = require"TheIncgi/Plasma-projects/IK-Arm/libs/utils"
 local Json = require"TheIncgi/Plasma-projects/main/libs/Json"
 
@@ -16,7 +16,7 @@ function Button:new( ... )
     {height="number",nil,"hei","h", "y2"},
     {textColor="table",{r=1,g=1,b=1}},
     {text="string",""},
-    {fontSize="number", 60},
+    {fontSize="number", 30},
     {backgroundColor="table",{r=.05,g=.51,b=.72}},
     {highlightColor={"nil","table"}},
     {payload="string",""},
