@@ -28,6 +28,7 @@ function yield()
 end
 
 function os.queueTask( label, task, preload )
+  print("QUEUE: "..label)
   if type(label) ~= "string" then
     error"Expected label for queueTask"
   end
@@ -35,7 +36,7 @@ function os.queueTask( label, task, preload )
   if initialType == "function" then
     task = coroutine.create( task )
     if preload then
-      coroutine.resume()
+      coroutine.resume(task)
     end
   end
   if type(task) ~= "thread" then
@@ -54,7 +55,7 @@ function main()
     os.queueEvent("tick")
     while _EVENTS[1] do --while events in queue
       local event = table.remove(_EVENTS, 1)      --remove first
-      for labeledTask in pairs(_THREADS) do                --all threads get the event
+      for _, labeledTask in pairs(_THREADS) do                --all threads get the event
         local thread = labeledTask.thread
         if type(thread) ~= "thread" then
           error("[MTB] queued task '%s' is not a thread":format(labeledTask.label))
