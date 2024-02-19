@@ -1,4 +1,4 @@
-local _TASKS = {}
+local _THREADS = {}
 local _EVENTS = {}
 
 os = os or {}
@@ -41,7 +41,7 @@ function os.queueTask( label, task, preload )
   if type(task) ~= "thread" then
     error("task must be of type function or thread, got "..initalType)
   end
-  table.insert(_TASKS, {
+  table.insert(_THREADS, {
     label = label,
     thread = task
   })
@@ -54,7 +54,7 @@ function main()
     os.queueEvent("tick")
     while _EVENTS[1] do --while events in queue
       local event = table.remove(_EVENTS, 1)      --remove first
-      for labeledTask in pairs(_TASKS) do                --all threads get the event
+      for labeledTask in pairs(_THREADS) do                --all threads get the event
         local thread = labeledTask.thread
         if type(thread) ~= "thread" then
           error("[MTB] queued task '%s' is not a thread":format(labeledTask.label))
@@ -66,9 +66,9 @@ function main()
         coroutine.resume( thread, event ) --modify with pcall/xpcall if you want
       end
 
-      --cleanup completed tasks
+      --cleanup completed threads
       while toRemove[1] do
-        _TASKS[ table.remove(toRemove) ] = nil 
+        _THREADS[ table.remove(toRemove) ] = nil 
       end
     end
 
