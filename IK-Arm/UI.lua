@@ -1,4 +1,4 @@
-print"Loading UI (build 13)"
+print"Loading UI (build 14)"
 local Screen = require("TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen")
 
 print"Loading menus..."
@@ -30,6 +30,6 @@ function UI._eventDispatcher()
   end
 end
 
-os.queueTask( UI._eventDispatcher )
+os.queueTask( "ui-event-monitor", UI._eventDispatcher )
 
 return UI

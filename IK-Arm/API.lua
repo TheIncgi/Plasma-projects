@@ -1,4 +1,4 @@
-print("Loading API (build 2)")
+print("Loading API (build 3)")
 local api = {
   _nextRequestID = 1,
   _tasks = {},
@@ -29,13 +29,13 @@ end
 
 --call in new coroutine on next tick... probably this tick actually
 --it will be at the end of the task queue, cool
-function api._callback(callback, ...)
-  os.queueTask( function()
+function api._callback(id, callback, ...)
+  os.queueTask( "api-callback-"..id, function()
     callback( ... )
   end )
 end
 
-os.queueTask( function()
+os.queueTask( "api-event-monitor", function()
   print"<color=22FF22>Launching API manager</color>"
   while true do
     local event, detail = os.pullEvent("apiResult")
@@ -43,7 +43,7 @@ os.queueTask( function()
     local task = api._tasks[id]
     if task then
       api._tasks[id] = nil
-      api._callback( task, {
+      api._callback( id, task, {
         err = err,
         body = body
       } )

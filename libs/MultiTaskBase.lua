@@ -27,7 +27,10 @@ function yield()
   os.pullEvent("tick")
 end
 
-function os.queueTask( task, preload )
+function os.queueTask( label, task, preload )
+  if type(label) ~= "string" then
+    error"Expected label for queueTask"
+  end
   local initialType = type(task)
   if initialType == "function" then
     task = coroutine.create( task )
@@ -38,7 +41,10 @@ function os.queueTask( task, preload )
   if type(task) ~= "thread" then
     error("task must be of type function or thread, got "..initalType)
   end
-  table.insert(_TASKS, task)
+  table.insert(_TASKS, {
+    label = label,
+    thread = task
+  })
 end
 
 --main loop, call this after you've setup your startup tasks
@@ -48,12 +54,16 @@ function main()
     os.queueEvent("tick")
     while _EVENTS[1] do --while events in queue
       local event = table.remove(_EVENTS, 1)      --remove first
-      for task in pairs(_TASKS) do                --all threads get the event
-        if coroutine.status(task) == "dead" then  --dead/suspended/running
-          table.insert(toRemove, task)            --mark for cleanup
+      for labeledTask in pairs(_TASKS) do                --all threads get the event
+        local thread = labeledTask.thread
+        if type(thread) ~= "thread" then
+          error("[MTB] queued task '%s' is not a thread":format(labeledTask.label))
+        end
+        if coroutine.status(thread) == "dead" then  --dead/suspended/running
+          table.insert(toRemove, thread)            --mark for cleanup
           continue
         end
-        coroutine.resume( task, event ) --modify with pcall/xpcall if you want
+        coroutine.resume( thread, event ) --modify with pcall/xpcall if you want
       end
 
       --cleanup completed tasks
