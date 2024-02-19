@@ -1,4 +1,4 @@
-print"Loading UI (build 12)"
+print"Loading UI (build 13)"
 local Screen = require("TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen")
 
 print"Loading menus..."
@@ -10,9 +10,6 @@ local UI = {
 UI.screen = UI.screens.main
 
 function UI.draw()
-  -- print"F1 - Collect Data"
-  -- print"F2 - Train"
-  -- print"F3 - Test"
   if UI.screen then
     print"Force drawing UI..."
     UI.screen:onEvent("draw")
@@ -21,7 +18,7 @@ function UI.draw()
   end
 end
 
-function UI.eventDispatcher()
+function UI._eventDispatcher()
   print("UI event dispatcher started")
   UI.draw()
   while true do
@@ -33,9 +30,6 @@ function UI.eventDispatcher()
   end
 end
 
-UI.task = coroutine.create( UI.eventDispatcher )
-coroutine.resume( UI.task )
-
-table.insert(_TASKS, UI.task)
+os.queueTask( UI._eventDispatcher )
 
 return UI

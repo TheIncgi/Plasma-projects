@@ -1,5 +1,5 @@
-_TASKS = {} --allows defining before this library
-_EVENTS = {}
+local _TASKS = {}
+local _EVENTS = {}
 
 os = os or {}
 os.queueEvent = function(eventName, ...)
@@ -25,6 +25,20 @@ end
 local nativeYield = yield
 function yield()
   os.pullEvent("tick")
+end
+
+function os.queueTask( task, preload )
+  local initialType = type(task)
+  if initialType == "function" then
+    task = coroutine.create( task )
+    if preload then
+      coroutine.resume()
+    end
+  end
+  if type(task) ~= "thread" then
+    error("task must be of type function or thread, got "..initalType)
+  end
+  table.insert(_TASKS, task)
 end
 
 --main loop, call this after you've setup your startup tasks

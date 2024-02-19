@@ -1,4 +1,4 @@
-print("Loading API (build 1)")
+print("Loading API (build 2)")
 local api = {
   _nextRequestID = 1,
   _tasks = {},
@@ -30,13 +30,12 @@ end
 --call in new coroutine on next tick... probably this tick actually
 --it will be at the end of the task queue, cool
 function api._callback(callback, ...)
-  local wrapper = coroutine.create(function()
+  os.queueTask( function()
     callback( ... )
-  end)
-  table.insert(_TASKS, wrapper)
+  end )
 end
 
-table.insert(_TASKS, coroutine.create( function()
+os.queueTask( function()
   print"<color=22FF22>Launching API manager</color>"
   while true do
     local event, detail = os.pullEvent("apiResult")
@@ -52,6 +51,6 @@ table.insert(_TASKS, coroutine.create( function()
       print("<color=#FF44>[API] WARN: no api task %s</color>":format(id))
     end
   end
-end ))
+end )
 
 return api
