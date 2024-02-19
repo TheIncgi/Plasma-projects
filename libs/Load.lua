@@ -1,4 +1,4 @@
-VERSION = "Meta Lua 1.0.5q"
+VERSION = "Meta Lua 1.0.5r"
 --Authors:
 --  TheIncgi
 -- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
@@ -3267,6 +3267,7 @@ end
 
 function Scope:addPlasmaGlobals()
   self:setNativeFunc( "output",     output      )
+  self:setNativeFunc( "output_array",     output_array      )
   self:setNativeFunc( "output_image",     output_image      )
   self:setNativeFunc( "color",     color      )
   self:setNativeFunc( "trigger",    trigger     )
