@@ -1,4 +1,4 @@
-print"Loading Text (build 4)"
+print"Loading Text (build 5)"
 
 local utils = require"TheIncgi/Plasma-projects/IK-Arm/libs/utils"
 local Json = require"TheIncgi/Plasma-projects/main/libs/Json"
@@ -23,7 +23,7 @@ function Text:new( ... )
     {height="number",nil,"hei","h", "y2"},
     {textColor="table",{r=1,g=1,b=1}},
     {text="string",""},
-    {fontSize="number", 60},
+    {fontSize="number", 30},
     {vertAlign="number",1,"vAlign"},
     {horzAlign="number",1,"hAlign"},
     {visible="boolean",true},
