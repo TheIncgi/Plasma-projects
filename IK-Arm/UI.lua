@@ -1,4 +1,4 @@
-print"Loading UI (build 16)"
+print"Loading UI (build 17)"
 local Screen = require("TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen")
 
 print"Loading menus..."
@@ -22,10 +22,10 @@ function UI._eventDispatcher()
   print("UI event dispatcher started")
   UI.draw()
   while true do
-    local event, detail = os.pullEvent({"key","ui"})
+    local event = {os.pullEvent({"key","ui"})}
     --print("[UI EVENT]:"..event)
     if UI.screen then
-      UI.screen:onEvent( event, detail )
+      UI.screen:onEvent( table.unpack(event) )
     end
   end
 end

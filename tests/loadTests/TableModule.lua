@@ -254,6 +254,46 @@ do
   test:var_eq(3, "last",   "Expected unpack value 3 to be \"last\", got $1")
 end
 
+------------------
+-- unpack start --
+------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { "first","middle","last"  }
+    return table.unpack(t, 2)
+  ]=]
+
+  local test = testUtils.codeTest(tester, "unpack start", env, libs, src)
+
+  test:var_eq(1, "middle", "Expected unpack value 1 to be \"middle\", got $1")
+  test:var_eq(2, "last",   "Expected unpack value 2 to be \"last\", got $1")
+end
+
+------------------
+-- unpack range --
+------------------
+do
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local src = [=[
+    local t = { "first", "second", "third","last"  }
+    return table.unpack(t, 2, 3)
+  ]=]
+
+  local test = testUtils.codeTest(tester, "unpack range", env, libs, src)
+
+  test:var_eq(1, "second", "Expected unpack value 1 to be \"second\", got $1")
+  test:var_eq(2, "third",   "Expected unpack value 2 to be \"third\", got $1")
+end
+
 ----------
 -- sort --
 ----------
