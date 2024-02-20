@@ -1,4 +1,4 @@
-print"Loading Button (build 6)"
+print"Loading Button (build 7)"
 local utils = require"TheIncgi/Plasma-projects/IK-Arm/libs/utils"
 local Json = require"TheIncgi/Plasma-projects/main/libs/Json"
 
@@ -25,6 +25,8 @@ function Button:new( ... )
     {onRelease={"function","nil"},nil},
     {UUID="number",nil,"uuid", "id"}
   },...)
+
+  print("BUTTON onClick: "..tostring(args.onClick))
 
   obj.UUID = args.UUID
   if args"width" == "x2" then
