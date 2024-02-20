@@ -55,6 +55,7 @@ function main()
     os.queueEvent("tick")
     while _EVENTS[1] do --while events in queue
       local event = table.remove(_EVENTS, 1)      --remove first
+      print("EVENT: "..table.serialize(event))
       for _, labeledTask in pairs(_THREADS) do                --all threads get the event
         local thread = labeledTask.thread
         if type(thread) ~= "thread" then
