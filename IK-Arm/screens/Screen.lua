@@ -1,4 +1,4 @@
-print"Loading Screen (build 22)"
+print"Loading Screen (build 23)"
 
 require"TheIncgi/Plasma-projects/main/libs/class"
 local Json = require"TheIncgi/Plasma-projects/main/libs/Json"
@@ -35,6 +35,7 @@ function Screen:onEvent(event, ...)
     print( "button id: %d, %s":format(buttonID, tostring(isDown))  )
     for i, elem in ipairs(self.elements) do
       if elem.UUID == buttonID then
+        print("%s == %s -> %s":format(tostring(elem.UUID), tostring(buttonID), tostring(elem.UUID == buttonID)))
         if isDown and elem.onClick then
           print("ON CLICK: "..tostring(elem.onClick))
           elem:onClick()
