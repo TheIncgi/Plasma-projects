@@ -1,4 +1,4 @@
-print"Loading Screen (build 21)"
+print"Loading Screen (build 22)"
 
 require"TheIncgi/Plasma-projects/main/libs/class"
 local Json = require"TheIncgi/Plasma-projects/main/libs/Json"
@@ -38,7 +38,7 @@ function Screen:onEvent(event, ...)
         if isDown and elem.onClick then
           print("ON CLICK: "..tostring(elem.onClick))
           elem:onClick()
-        elseif not isDown and elem.onRelease
+        elseif not isDown and elem.onRelease then
           print("ON RELEASE: "..tostring(elem.onRelease))
           elem:onRelease()
         end
