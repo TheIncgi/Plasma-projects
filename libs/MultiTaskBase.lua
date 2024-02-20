@@ -12,6 +12,12 @@ end
 os.pullEvent = function(filters)
   if type(filters) == "string" then
     filters = {[filters] = true}
+  elseif type(filters)=="table" and filters[1] then
+    local tmp = {}
+    for _, v in ipairs(filters) do
+      tmp[v] = true
+    end
+    filters = tmp
   end
   local event
   repeat
