@@ -1,4 +1,4 @@
-print("Creating Main Menu (build 23)")
+print("Creating Main Menu (build 24)")
 
 local Screen = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen"
 local Button = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Button"
@@ -75,21 +75,17 @@ function MainMenu:new( ... )
   table.insert(obj.elements, obj.dataButton)
   table.insert(obj.elements, obj.trainButton)
   table.insert(obj.elements, obj.testButton)
-  
+
   return obj
 end
 
-function MainMenu:updateSampleCount()
+function MainMenu:updateSampleCount( n )
 
 end
 
---@Override
-function MainMenu:onEvent(event, ...)
-  if event == "updateSampleCount" then
-    --TODO
-  else
-    self:super().onEvent( self, event, ... )
-  end
-end
+-- --@Override
+-- function MainMenu:onEvent(event, ...)
+--   self:super().onEvent( self, event, ... )
+-- end
 
 return MainMenu
