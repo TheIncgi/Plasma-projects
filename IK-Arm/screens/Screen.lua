@@ -1,4 +1,4 @@
-print"Loading Screen (build 17)"
+print"Loading Screen (build 18)"
 
 require"TheIncgi/Plasma-projects/main/libs/class"
 local Json = require"TheIncgi/Plasma-projects/main/libs/Json"
@@ -32,7 +32,7 @@ function Screen:onEvent(event, ...)
 
   elseif event == "ui" then
     local buttonID, isDown = ...
-    for i, elem in self.elements do
+    for i, elem in ipairs(self.elements) do
       if elem.UUID == buttonID then
         if isDown and elem.onClick then
           elem:onClick()
