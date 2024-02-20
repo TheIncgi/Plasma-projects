@@ -1,4 +1,4 @@
-print"Loading Text (build 5)"
+print"Loading Text (build 6)"
 
 local utils = require"TheIncgi/Plasma-projects/IK-Arm/libs/utils"
 local Json = require"TheIncgi/Plasma-projects/main/libs/Json"
@@ -30,7 +30,7 @@ function Text:new( ... )
     {UUID="number",nil,"uuid", "id"}
   },...)
 
-  obj.id = args.UUID
+  obj.UUID = args.UUID
   if args"width" == "x2" then
     obj.x = math.min(args.x, args.width)
     obj.width = math.abs(args.width - args.x)
