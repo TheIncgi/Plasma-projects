@@ -1,4 +1,4 @@
-print"Loading Button (build 7)"
+print"Loading Button (build 8)"
 local utils = require"TheIncgi/Plasma-projects/IK-Arm/libs/utils"
 local Json = require"TheIncgi/Plasma-projects/main/libs/Json"
 
@@ -51,6 +51,7 @@ function Button:new( ... )
   obj.highlightColor = args.highlightColor or utils.computeHighlight(args.backgroundColor)
   obj.payload = args.payload
   obj.visible = args.visible
+  print("ARGS ON CLICK: "..tostring(args.onClick))
   obj.onClick = args.onClick
   obj.onRelease = args.onRelease
 
