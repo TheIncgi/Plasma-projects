@@ -1,4 +1,4 @@
-print("Creating Data Collection Menu (build 2)")
+print("Creating Data Collection Menu (build 3)")
 
 local Screen = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen"
 local Button = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Button"
@@ -24,7 +24,8 @@ function DCM:new( UI, ... )
     backgroundColor = {r=1, g=0, b=0},
     onClick=function()
       UI.setScreen("main")
-    end
+    end,
+    uuid = 1
   })
 
   return obj
