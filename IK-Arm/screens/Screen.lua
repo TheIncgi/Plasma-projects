@@ -35,7 +35,7 @@ function Screen:onEvent(event, ...)
     --print( "button id: %d, %s":format(buttonID, tostring(isDown))  )
     for i, elem in ipairs(self.elements) do
       if elem.UUID == buttonID then
-        print(table.serialize(elem))
+        print(isDown, elem.onClick)
         if isDown and elem.onClick then
           print("ON CLICK: "..tostring(elem.onClick))
           elem:onClick()

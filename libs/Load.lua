@@ -1,4 +1,4 @@
-VERSION = "Meta Lua 1.0.5s"
+VERSION = "Meta Lua 1.0.5t"
 --Authors:
 --  TheIncgi
 -- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
@@ -1397,7 +1397,11 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
             local deleteScope = {op="deleteScope", token = token, index = #instructions+1, line = token.line}
             table.insert(instructions, deleteScope)
             local startingBlock = table.remove(blocks)            
+            if not startingBlock or startingBlock.op~="repeat" then
+              error("until on line %d can't "..(startingBlock and ("close a(n) "..startingBlock.op.." statement on line "..startingBlock.line ) or "close a non existant loop"):format(instruction.line))
+            end
             instruction.start = startingBlock
+            startingBlock.skip = instruction --used by break
             if token.blockLevel <= exitBlockLevel then
               return {instructions, index + 1}
             end
@@ -1407,6 +1411,9 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
           return --continue
         elseif token.value == "end" then
           local startingBlock = table.remove(blocks)
+          if startingBlock and startingBlock.op == "repeat" then
+            error(("Expected until on line %d, found end"):format(startingBlock.line))
+          end
           local endInst = {op="end", line = token.line, index = #instructions+1}
           table.insert(instructions, endInst)
           if startingBlock and startingBlock.skip == false then
@@ -1851,6 +1858,10 @@ function Loader._val( v, tName )
     type = tName or type(v),
     value = v
   }
+end
+
+function Loader.truthy( val )
+  return val and not (val.type == "nil" or val.value == false)
 end
 
 Loader.constants = {
@@ -4278,7 +4289,8 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
         Async.insertTasks({
           label = "if condition results",
           func = function( stack )
-            local value = (stack[1] or Loader.constants["nil"]).value
+            local value = (stack[1] or Loader.constants["nil"])
+            value = Loader.truthy( value )
             top.ifState = value
             if not value then
               index = inst.skip.index
@@ -4300,7 +4312,8 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
           Async.insertTasks({
             label = "elseif results",
             func = function( stack )
-              local value = (stack[1] or Loader.constants["nil"]).value
+              local value = (stack[1] or Loader.constants["nil"])
+              value = Loader.truthy( value )
               top.ifState = value
               if not value then
                 index = inst.skip.index
@@ -4364,7 +4377,8 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
         Async.insertTasks({
           label = "assignment eval results",
           func = function( stack )
-            local value = (stack[1] or Loader.constants["nil"]).value
+            local value = (stack[1] or Loader.constants["nil"])
+            value = Loader.truthy( value )
             if not value then
               index = inst.skip.index + 1 -- skip end instruction which sends back to this instruction
             else
@@ -4429,13 +4443,17 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
         return --continue
       
       elseif inst.op == "repeat" then
-        --no opperation
+        top.isLoop = true
+        top.start = inst
+        top.stop = inst.skip
+        --yes, that's it
 
       elseif inst.op == "until" then
         Async.insertTasks({
           label = "until condition results",
           func = function( stack )
-            local value = (stack[1] or Loader.constants["nil"]).value
+            local value = (stack[1] or Loader.constants["nil"])
+            value = Loader.truthy( value )
             if value then --exit on true
               index = index + 1
             else
