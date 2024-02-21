@@ -1,13 +1,14 @@
-print"Loading UI (build 18)"
+print"Loading UI (build 19)"
 local Screen = require("TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen")
 
 print"Loading menus..."
 local UI = {
-  screens = {
-    main = require("TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/MainMenu"):new( UI ),
-    dataCollectionMenu = require("TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/DataCollectionMenu"):new( UI )
-  }
+  screens = {}
 }
+
+UI.screens.main = require("TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/MainMenu"):new( UI ),
+UI.screens.dataCollectionMenu = require("TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/DataCollectionMenu"):new( UI )
+
 UI.screen = UI.screens.main
 
 function UI.setScreen( to )
