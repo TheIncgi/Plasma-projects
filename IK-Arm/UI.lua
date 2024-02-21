@@ -1,4 +1,4 @@
-print"Loading UI (build 19)"
+print"Loading UI (build 20)"
 local Screen = require("TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen")
 
 print"Loading menus..."
@@ -13,7 +13,7 @@ UI.screen = UI.screens.main
 
 function UI.setScreen( to )
   if type(to) == "string" then
-    to = UI.screens[name]
+    to = UI.screens[to]
   end
   UI.prevScreen = UI.screen
   UI.screen = to --or todo error
