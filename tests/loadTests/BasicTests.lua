@@ -245,4 +245,195 @@ do
   test:var_eq(1,"len: 3")
 end
 
+-----------------------
+-- unm table element --
+-----------------------
+do
+  --given
+  local src = [=[
+    t = {x=45}
+    u = -t.x
+    return u
+  ]=]
+  local env = Env:new()
+  local libs = testUtils.libs()
+  local common = testUtils.common(env)
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local test = testUtils.codeTest( tester, "unm table element", env, libs, src )
+
+  test:var_eq(1,-45)
+end
+
+-------------------
+-- declare local --
+-------------------
+do
+  --given
+  local src = [=[
+    x = 15
+    do
+      local x,y,z
+      x = 10
+    end
+    return x
+  ]=]
+  local env = Env:new()
+  local libs = testUtils.libs()
+  local common = testUtils.common(env)
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local test = testUtils.codeTest( tester, "unm table element", env, libs, src )
+
+  test:var_eq(1,15)
+end
+
+------------------------
+-- function == ~= nil --
+------------------------
+do
+  --given
+  local src = [=[
+    function foo() end
+    return print ~= nil, print == nil, print == foo, print ~= foo
+  ]=]
+  local env = Env:new()
+  local libs = testUtils.libs()
+  local common = testUtils.common(env)
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local test = testUtils.codeTest( tester, "func equality", env, libs, src )
+
+  test:var_eq(1, true, "print ~= nil, expected true, got $1")
+  test:var_eq(2, false,"print == nil, expected false, got $1")
+  test:var_eq(3, false,"print == foo, expected false, got $1")
+  test:var_eq(4, true, "print ~= foo, expected true, got $1")
+end
+
+-----------------
+-- if function --
+-----------------
+do
+  --given
+  local src = [=[
+    function foo() end
+    x, y = false, false
+    if print then
+      x = true
+    end
+    if foo then
+      y = true
+    end
+    return x, y
+  ]=]
+  local env = Env:new()
+  local libs = testUtils.libs()
+  local common = testUtils.common(env)
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local test = testUtils.codeTest( tester, "if func", env, libs, src )
+
+  test:var_eq(1, true, "if native func fails")
+  test:var_eq(2, true, "if user func fails")
+
+end
+
+
+-----------------
+-- ifelse function --
+-----------------
+do
+  --given
+  local src = [=[
+    function foo() end
+    x, y = false, false
+
+    if false then
+    elseif print then
+      x = true
+    end
+
+    if false then
+    elseif foo then
+      y = true
+    end
+    return x, y
+  ]=]
+  local env = Env:new()
+  local libs = testUtils.libs()
+  local common = testUtils.common(env)
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local test = testUtils.codeTest( tester, "ifelse func", env, libs, src )
+
+  test:var_eq(1, true, "elseif native func fails")
+  test:var_eq(2, true, "elseif user func fails")
+
+end
+
+-----------------
+-- while function --
+-----------------
+do
+  --given
+  local src = [=[
+    function foo() end
+    x, y = false, false
+
+    while print do
+      x = true
+      break
+    end
+
+    while foo do
+      y = true
+      break
+    end
+    return x, y
+  ]=]
+  local env = Env:new()
+  local libs = testUtils.libs()
+  local common = testUtils.common(env)
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local test = testUtils.codeTest( tester, "while func", env, libs, src )
+
+  test:var_eq(1, true, "while native func fails")
+  test:var_eq(2, true, "while user func fails")
+
+end
+
+-----------------
+-- repeat function --
+-----------------
+do
+  --given
+  local src = [=[
+    function foo() end
+    x, y = 0, 0
+
+    repeat
+      x = x + 1
+      if x > 5 then break end
+    until print
+
+    repeat
+      y = y + 1
+      if y > 5 then break end
+    until foo
+
+    return x, y
+  ]=]
+  local env = Env:new()
+  local libs = testUtils.libs()
+  local common = testUtils.common(env)
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local test = testUtils.codeTest( tester, "repeat func", env, libs, src )
+
+  test:var_eq(1, 1, "until native func fails")
+  test:var_eq(2, 1, "until user func fails")
+
+end
+
 return tester

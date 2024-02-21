@@ -144,5 +144,35 @@ do
   test:var_eq(1, 6)
 end
 
+-----------------
+-- leaky loops --
+-----------------
+do
+  --given
+  local src = [=[
+    t = {"a", "b"}
+    for k,v in pairs(t) do
+      print(k, v)
+      if type(v) ~= "string" then
+        error("Your loop leaked! ("..v..")")
+      end
+
+      local foo = {"x",99}
+      for _,w in ipairs(foo) do
+        if true then break end
+      end
+    end
+  ]=]
+  local env = Env:new()
+  local common = testUtils.common(env)
+  local libs = testUtils.libs()
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+  
+  -- common.printProxy.target = print
+
+  --test code
+  local test = testUtils.codeTest(tester, "leaky loops", env, libs, src)
+end
+
 
 return tester

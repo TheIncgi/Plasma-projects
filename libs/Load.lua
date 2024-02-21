@@ -1,4 +1,4 @@
-VERSION = "Meta Lua 1.0.4"
+VERSION = "Meta Lua 1.0.5"
 --Authors:
 --  TheIncgi
 -- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
@@ -362,8 +362,9 @@ function Async.getHook()
 end
 
 --static method of getting active scope
-function Async.getScope( scope )
-  return Async.threads and Async.threads[ Async.activeThread ] and Async.threads[ Async.activeThread ].scope
+function Async.getScope( threadID )
+  threadID = threadID or Async.activeThread
+  return Async.threads and Async.threads[ threadID ] and Async.threads[ threadID ].scope
 end
 
 local insertTasks = Async.insertTasks
@@ -818,7 +819,7 @@ function Loader.cleanupTokens( tokens )
           --end
           --table.remove(tokens, index)
           return --continue
-
+        
         elseif token == "(" or token == "{" then -- " doesn't
           if prior and (
               (prior.type == "var")
@@ -908,6 +909,15 @@ function Loader.cleanupTokens( tokens )
           twicePrior.value ~= ")" and twicePrior.value ~= "}" and twicePrior.value ~= "]" ))
          or twicePrior == nil or (twicePrior and twicePrior.type=="keyword")) then
           prior.value = "-unm"
+        end
+      end
+
+      if infoToken.value == "-" or infoToken.value == "~" then
+        if not prior or (prior.type == "op" and not ({[")"]=true,["]"]=true,["}"]=true})[prior.value]) or prior.type == "assignment-set" then
+          infoToken.value = ({
+            ["-"]="-unm",
+            ["~"]="~ubn"
+          })[infoToken.value]
         end
       end
 
@@ -1087,7 +1097,31 @@ function Loader._findExpressionEnd( tokens, start, allowAssignment, ignoreComma,
           Loader.buildInstructions(tokens, instStart, token.blockLevel) --returns instructions, nextIndex
           requiresValue = false
           return --continue into inserted tasks
-        else          
+        elseif tableMode and token.type == "assignment-set" and #token.value == 2 then
+          local a = table.remove( token.value,1 )
+          
+          if a.infix then
+            local i = index
+            for k,v in ipairs( a.infix.place ) do
+              v.line = v.line or token.line
+              table.insert(tokens, i, v)
+              i = i+1
+            end
+            table.insert(tokens, i, {type = "op", value = "[", line = token.line, index = true})
+            for k,v in ipairs( a.infix.index ) do
+              v.line = v.line or token.line
+              table.insert(tokens, i+1, v)
+              i = i+1
+            end
+            table.insert(tokens, i+1, {type = "op", value = "]", line = token.line})
+            table.insert(tokens, i+2, {type = "op", value = ",", line = token.line})
+          else
+            table.insert(tokens, index, a)
+            table.insert(tokens, index+1, {type = "op", value = ",", line = a.line})
+          end
+          
+          requiresValue = false
+        else
           requiresValue = false
         end
       elseif token.type == "op" then
@@ -1269,7 +1303,7 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
         return --continue
       elseif localVar and token.type == "var" then
         local vars = {token}
-        while tokens[index+1].value == "," and tokens[index+1].type == "var" do
+        while tokens[index+1].value == "," and tokens[index+2].type == "var" do
           table.insert(vars, tokens[index + 2])
           index = index + 2
         end
@@ -1363,7 +1397,11 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
             local deleteScope = {op="deleteScope", token = token, index = #instructions+1, line = token.line}
             table.insert(instructions, deleteScope)
             local startingBlock = table.remove(blocks)            
+            if not startingBlock or startingBlock.op~="repeat" then
+              error("until on line %d can't "..(startingBlock and ("close a(n) "..startingBlock.op.." statement on line "..startingBlock.line ) or "close a non existant loop"):format(instruction.line))
+            end
             instruction.start = startingBlock
+            startingBlock.skip = instruction --used by break
             if token.blockLevel <= exitBlockLevel then
               return {instructions, index + 1}
             end
@@ -1373,6 +1411,9 @@ function Loader.buildInstructions( tokens, start, exitBlockLevel )
           return --continue
         elseif token.value == "end" then
           local startingBlock = table.remove(blocks)
+          if startingBlock and startingBlock.op == "repeat" then
+            error(("Expected until on line %d, found end"):format(startingBlock.line))
+          end
           local endInst = {op="end", line = token.line, index = #instructions+1}
           table.insert(instructions, endInst)
           if startingBlock and startingBlock.skip == false then
@@ -1817,6 +1858,10 @@ function Loader._val( v, tName )
     type = tName or type(v),
     value = v
   }
+end
+
+function Loader.truthy( val )
+  return val and not (val.type == "nil" or val.value == false)
 end
 
 Loader.constants = {
@@ -2528,7 +2573,7 @@ function Loader.eval( postfix, scope, line )
 
         elseif token.value == "==" then
           popAsync(stack, scope, line, false, 2, function(a,b)
-            if a.type == "function" and b.type == "function" then
+            if a.type == "function" or b.type == "function" then
               table.insert(stack, val(a == b))
               return --continue
             end
@@ -2550,7 +2595,7 @@ function Loader.eval( postfix, scope, line )
               table.insert(stack, val(a ~= b))
               return --continue
             elseif a.type == "function" or b.type == "function" then --xor
-              table.insert(stack, Loaders.constants["false"])
+              table.insert(stack, Loader.constants["true"])
               return --continue
             end
 
@@ -3233,6 +3278,7 @@ end
 
 function Scope:addPlasmaGlobals()
   self:setNativeFunc( "output",     output      )
+  self:setNativeFunc( "output_array",     output_array      )
   self:setNativeFunc( "output_image",     output_image      )
   self:setNativeFunc( "color",     color      )
   self:setNativeFunc( "trigger",    trigger     )
@@ -3366,7 +3412,10 @@ function Scope:addGlobals()
     end
   end, false, false )
 
-  self:setNativeFunc( "type", function( value ) return value.type end, false, nil )
+  self:setNativeFunc( "type", function( value ) 
+    if value.type=="num" then return "number" end
+    return value.type 
+  end, false, nil )
   self:setNativeFunc( "getmetatable", function( tblValue )
     local tbl, protected = Loader.getmetatable( tblValue ) --wrapped to block second arg
     return tbl, Loader._val(protected)
@@ -3491,6 +3540,14 @@ function Scope:addGlobals()
     end
     error( msg.value )
   end, false, false)
+  self:setNativeFunc( "select", function( index, ... )
+    local args = {...}
+    if index.value == "#" then
+      return Loader._val(#args)
+    end
+    return Loader._varargs( table.unpack(args, index.value) )
+  end, false, false)
+  
   self:setRaw(false, "_VERSION", Loader._val(VERSION))
 
   local authors = Loader.newTable()
@@ -3691,6 +3748,17 @@ function Scope:addGlobals()
     error("feature requires metatables to be implemented!") --TODO
   end, false, false))
 
+  Loader.assignToTable( coroutineModule, Loader._val("current"), self:makeNativeFunc("current"), function()
+    return Loader._val( Async.activeThread, "thread" )
+  end, false, false)
+
+  Loader.assignToTable( coroutineModule, Loader._val("current"), self:makeNativeFunc("current"), function()
+    if Async.activeThread == 1 then
+      return Loader.constants["nil"]
+    end
+    return Loader._val( Async.activeThread, "thread" )
+  end, false, false)
+
   self:setRaw(false, "coroutine", coroutineModule)
   -- self:setNativeFunc( "",  )
 
@@ -3711,6 +3779,61 @@ function Scope:addGlobals()
   Loader.assignToTable( debugModule, Loader._val("sethook"), self:makeNativeFunc("sethook", function(callback, mode, count)
     Async.setHook( callback, mode and mode.value or "l", count and count.value )
   end, false, false))
+
+  Loader.assignToTable( debugModule, Loader._val("getinfo"), self:makeNativeFunc("getinfo", function(...)
+    local args = {...}
+
+    local threadID, level, what
+    if #args == 2 then
+      threadID = Async.activeThread
+      level, what = args[1].value, args[2].value
+    elseif #args == 3 then
+      if args[1].type ~= "thread" then
+        error("Expected arg 1 to be thread for debug.getinfo(<thread,> level, what), got "..args[1].type)
+      end
+      threadID = args[1].value
+      level, what = args[2].value, args[3].value
+    else
+      error("Too few args for call to debug.getinfo(<thread,> level, what)")
+    end
+
+    local threadScope = Async.getScope( threadID )
+    for i = 2, level do
+      threadScope = threadScope.parent
+      if not threadScope then
+        return Loader.constants["nil"]
+      end
+    end
+
+    local result = Loader.newTable()
+    for x in what:gmatch"." do
+      if x == "f" or x == "*" then
+      end
+      if x == "l" or x == "*" then
+        Loader.assignToTable(result, Loader._val("currentline"), Loader._val( threadScope.line ))
+      end
+      if x == "L" or x == "*" then
+      end
+      if x == "n" or x == "*" then
+        Loader.assignToTable(result, Loader._val("name"), Loader._val(threadScope.name))
+        Loader.assignToTable(result, Loader._val("namewhat"), Loader._val("")) --TODO / Not implemented
+      end
+      if x == "S" or x == "*" then
+        -- Loader.assignToTable(result, Loader._val("source"), Loader._val("")) --TODO / Not implemented
+        -- Loader.assignToTable(result, Loader._val("short_src"), Loader._val("")) --TODO / Not implemented
+        -- Loader.assignToTable(result, Loader._val(""), Loader._val())
+        -- Loader.assignToTable(result, Loader._val("what"), Loader._val())
+      end
+      -- if x == "u" or x == "*" then
+      -- end
+      if x == "*" then
+        break
+      end
+    end
+
+    return result
+  end, false, false))
+  Loader.assignToTable( debugModule, Loader._val("info"), Loader.indexTable(debugModule, Loader._val("getinfo"))) --alias
 
   self:setRaw(false, "debug", debugModule)
 end
@@ -4030,7 +4153,9 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
     {
       label = "Loader.execute - setup",
       func = function()
-        callStack[1]:setVarargs(prgmArgs)
+        if not callStack[1].parent then
+          callStack[1]:setVarargs(prgmArgs)
+        end
         return true
       end
     },
@@ -4148,6 +4273,9 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
                 top:setAsync( inst.isLocal, target.name, fval )
               else
                 local nameVal = Loader._val(target.name)
+                if target.place.value == nil then
+                  error("table may be missing for function '"..inst.name.."' on line "..inst.line)
+                end
                 target.place.value[nameVal] = fval
                 Loader.tableIndexes[target.place.value][target.name] = nameVal
               end
@@ -4161,7 +4289,8 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
         Async.insertTasks({
           label = "if condition results",
           func = function( stack )
-            local value = (stack[1] or Loader.constants["nil"]).value
+            local value = (stack[1] or Loader.constants["nil"])
+            value = Loader.truthy( value )
             top.ifState = value
             if not value then
               index = inst.skip.index
@@ -4183,7 +4312,8 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
           Async.insertTasks({
             label = "elseif results",
             func = function( stack )
-              local value = (stack[1] or Loader.constants["nil"]).value
+              local value = (stack[1] or Loader.constants["nil"])
+              value = Loader.truthy( value )
               top.ifState = value
               if not value then
                 index = inst.skip.index
@@ -4222,6 +4352,7 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
         local t = top
         while not t.isLoop and t.parent do
           t = t.parent
+          table.remove(callStack) --pop
         end
         if not t.isLoop then
           error("break statment is not in a loop")
@@ -4246,7 +4377,8 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
         Async.insertTasks({
           label = "assignment eval results",
           func = function( stack )
-            local value = (stack[1] or Loader.constants["nil"]).value
+            local value = (stack[1] or Loader.constants["nil"])
+            value = Loader.truthy( value )
             if not value then
               index = inst.skip.index + 1 -- skip end instruction which sends back to this instruction
             else
@@ -4311,13 +4443,17 @@ function Loader.execute( instructions, env, nNamedArgs, ... )
         return --continue
       
       elseif inst.op == "repeat" then
-        --no opperation
+        top.isLoop = true
+        top.start = inst
+        top.stop = inst.skip
+        --yes, that's it
 
       elseif inst.op == "until" then
         Async.insertTasks({
           label = "until condition results",
           func = function( stack )
-            local value = (stack[1] or Loader.constants["nil"]).value
+            local value = (stack[1] or Loader.constants["nil"])
+            value = Loader.truthy( value )
             if value then --exit on true
               index = index + 1
             else
@@ -4363,6 +4499,7 @@ end
 --===================================================================================
 --TODO block concurrent requests from coroutines
 function Net.require( path )
+  local shortPath = path
   path = path:sub(1,4) == "http" and path or 
           "https://raw.githubusercontent.com/"..path..".lua"
   local package = Plasma.scope:getRaw("package")
@@ -4372,7 +4509,7 @@ function Net.require( path )
       local pkg = Loader.indexTable(loaded, Loader._val(path))
       if pkg.type ~= "nil" then
         Async.insertTasks({label = "require-loaded",func=function()
-          return {Loader._varargs(module)}
+          return {Loader._varargs(pkg)}
         end})
         return
       end
@@ -4399,7 +4536,7 @@ function Net.require( path )
           return false -- wait till next tick
         end
         if type(Net.result) == "string" then
-          Loader.run(Net.result) -- returns values
+          Loader.run(Net.result, shortPath) -- returns values
         else
           return {Loader._varargs(Loader._val(Net.result))}
         end
@@ -4530,7 +4667,7 @@ end
 ------------------
 --  interfaces  --
 ------------------
-function Loader.run(src)
+function Loader.run(src, withName)
   src = src or read_var"src"
   if src then
     DBG = {}
@@ -4571,7 +4708,9 @@ function Loader.run(src)
               func = function()
                 DBG.inst = instructions
                 --LOG(utils.serializeOrdered(DBG))
-                Loader.execute(instructions, Plasma.scope)
+                --Scope:new(name, line, parent, index, tableValue)
+                local scope = withName and Scope:new(withName, 1, Plasma.scope) or Plasma.scope
+                Loader.execute(instructions, scope)
                 return true
               end
             }

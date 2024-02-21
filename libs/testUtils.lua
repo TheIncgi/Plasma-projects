@@ -81,7 +81,8 @@ function testUtils.var_pattern(test, argN, pattern)
 end
 
 function testUtils.readSource( path )
-  local file = io.open(path:sub(#("TheIncgi/Plasma-projects/main/")+1)..".lua","r")
+  local module = path:match("^TheIncgi/Plasma%-projects/[^/]+/(.+)")
+  local file = io.open(module..".lua","r")
   local data = file:read("*all")
   file:close()
   return data

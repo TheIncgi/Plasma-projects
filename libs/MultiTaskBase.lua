@@ -1,5 +1,5 @@
-_TASKS = {} --allows defining before this library
-_EVENTS = {}
+local _THREADS = {}
+local _EVENTS = {}
 
 os = os or {}
 os.queueEvent = function(eventName, ...)
@@ -12,53 +12,73 @@ end
 os.pullEvent = function(filters)
   if type(filters) == "string" then
     filters = {[filters] = true}
+  elseif type(filters)=="table" and filters[1] then
+    local tmp = {}
+    for _, v in ipairs(filters) do
+      tmp[v] = true
+    end
+    filters = tmp
   end
   local event
   repeat
-    trigger(5)
+    --trigger(5)
     event = coroutine.yield() or {}
   until filters[event[1]]
   return table.unpack(event)
 end
 
---example task, can also do this from `interrupt` command safely
-do  --limit scope
-  local task
-  task = coroutine.create(function()
-    print("Waiting for gamepad events")
-    while true do
-      local event, about, detail = os.pullEvent"gamepad"
-      print("EVENT:", event, about, detail and table.serialize(detail) or "")
-      if about == "back" then
-        break
-      end
+--allow all coroutines to yield independently
+local nativeYield = yield
+function yield()
+  os.pullEvent("tick")
+end
+
+function os.queueTask( label, task, preload )
+  print("QUEUE: "..label)
+  if type(label) ~= "string" then
+    error"Expected label for queueTask"
+  end
+  local initialType = type(task)
+  if initialType == "function" then
+    task = coroutine.create( task )
+    if preload then
+      coroutine.resume(task)
     end
-    print"EXIT!"
-  end)
-  coroutine.resume(task) --start task
-  _TASKS[ task ] = true --register task
+  end
+  if type(task) ~= "thread" then
+    error("task must be of type function or thread, got "..initalType)
+  end
+  table.insert(_THREADS, {
+    label = label,
+    thread = task
+  })
 end
 
 --main loop, call this after you've setup your startup tasks
 function main()
   while true do
     local toRemove = {} --don't alter while itterating
+    os.queueEvent("tick")
     while _EVENTS[1] do --while events in queue
       local event = table.remove(_EVENTS, 1)      --remove first
-      for task in pairs(_TASKS) do                --all threads get the event
-        if coroutine.status(task) == "dead" then  --dead/suspended/running
-          table.insert(toRemove, task)            --mark for cleanup
+      for _, labeledTask in pairs(_THREADS) do                --all threads get the event
+        local thread = labeledTask.thread
+        if type(thread) ~= "thread" then
+          error("[MTB] queued task '%s' is not a thread":format(labeledTask.label))
+        end
+        if coroutine.status(thread) == "dead" then  --dead/suspended/running
+          table.insert(toRemove, thread)            --mark for cleanup
           continue
         end
-        coroutine.resume( task, event ) --modify with pcall/xpcall if you want
+        coroutine.resume( thread, event ) --modify with pcall/xpcall if you want
       end
 
-      --cleanup completed tasks
+      --cleanup completed threads
       while toRemove[1] do
-        _TASKS[ table.remove(toRemove) ] = nil 
+        _THREADS[ table.remove(toRemove) ] = nil 
       end
     end
 
-    yield() --wait for next tick
+    nativeYield() --wait for next tick
   end
 end
