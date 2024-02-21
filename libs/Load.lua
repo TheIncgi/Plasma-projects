@@ -1,4 +1,4 @@
-VERSION = "Meta Lua 1.0.5r"
+VERSION = "Meta Lua 1.0.5s"
 --Authors:
 --  TheIncgi
 -- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
@@ -2562,7 +2562,7 @@ function Loader.eval( postfix, scope, line )
 
         elseif token.value == "==" then
           popAsync(stack, scope, line, false, 2, function(a,b)
-            if a.type == "function" and b.type == "function" then
+            if a.type == "function" or b.type == "function" then
               table.insert(stack, val(a == b))
               return --continue
             end
@@ -2584,7 +2584,7 @@ function Loader.eval( postfix, scope, line )
               table.insert(stack, val(a ~= b))
               return --continue
             elseif a.type == "function" or b.type == "function" then --xor
-              table.insert(stack, Loader.constants["false"])
+              table.insert(stack, Loader.constants["true"])
               return --continue
             end
 

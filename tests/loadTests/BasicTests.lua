@@ -288,4 +288,27 @@ do
   test:var_eq(1,15)
 end
 
+------------------------
+-- function == ~= nil --
+------------------------
+do
+  --given
+  local src = [=[
+    function foo() end
+    return print ~= nil, print == nil, print == foo, print ~= foo
+  ]=]
+  local env = Env:new()
+  local libs = testUtils.libs()
+  local common = testUtils.common(env)
+  local Loader, Async, Net, Scope = libs.Loader, libs.Async, libs.Net, libs.Scope
+
+  local test = testUtils.codeTest( tester, "func equality", env, libs, src )
+
+  test:var_eq(1, true, "print ~= nil, expected true, got $1")
+  test:var_eq(2, false,"print == nil, expected false, got $1")
+  test:var_eq(3, false,"print == foo, expected false, got $1")
+  test:var_eq(4, true, "print ~= foo, expected true, got $1")
+end
+
+
 return tester

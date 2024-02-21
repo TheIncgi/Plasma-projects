@@ -26,8 +26,6 @@ function Button:new( ... )
     {UUID="number",nil,"uuid", "id"}
   },...)
 
-  print("BUTTON onClick: "..tostring(args.onClick))
-
   obj.UUID = args.UUID
   if args"width" == "x2" then
     obj.x = math.min(args.x, args.width)
@@ -51,7 +49,6 @@ function Button:new( ... )
   obj.highlightColor = args.highlightColor or utils.computeHighlight(args.backgroundColor)
   obj.payload = args.payload
   obj.visible = args.visible
-  print("ARGS ON CLICK: "..tostring(args.onClick))
   obj.onClick = args.onClick
   obj.onRelease = args.onRelease
 
