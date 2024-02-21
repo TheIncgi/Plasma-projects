@@ -1,4 +1,4 @@
-print"Loading Screen (build 25)"
+print"Loading Screen (build 26)"
 
 require"TheIncgi/Plasma-projects/main/libs/class"
 local Json = require"TheIncgi/Plasma-projects/main/libs/Json"
@@ -35,12 +35,9 @@ function Screen:onEvent(event, ...)
     --print( "button id: %d, %s":format(buttonID, tostring(isDown))  )
     for i, elem in ipairs(self.elements) do
       if elem.UUID == buttonID then
-        print(isDown, elem.onClick)
         if isDown and elem.onClick then
-          print("ON CLICK: "..tostring(elem.onClick))
           elem:onClick()
         elseif not isDown and elem.onRelease then
-          print("ON RELEASE: "..tostring(elem.onRelease))
           elem:onRelease()
         end
         break
