@@ -1,13 +1,23 @@
-print"Loading UI (build 17)"
+print"Loading UI (build 18)"
 local Screen = require("TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen")
 
 print"Loading menus..."
 local UI = {
   screens = {
-    main = require("TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/MainMenu"):new()
+    main = require("TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/MainMenu"):new( UI ),
+    dataCollectionMenu = require("TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/DataCollectionMenu"):new( UI )
   }
 }
 UI.screen = UI.screens.main
+
+function UI.setScreen( to )
+  if type(to) == "string" then
+    to = UI.screens[name]
+  end
+  UI.prevScreen = UI.screen
+  UI.screen = to --or todo error
+  UI.draw()
+end
 
 function UI.draw()
   if UI.screen then

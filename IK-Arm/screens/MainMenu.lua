@@ -7,7 +7,7 @@ local Text   = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Text"
 local MainMenu = class("TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/MainMenu", Screen)
 
 local _new = MainMenu.new
-function MainMenu:new( ... )
+function MainMenu:new( UI, ... )
   local obj = _new(self)
 
   local x = (Screen.WIDTH / 2) - (Screen.WIDTH / 4)
