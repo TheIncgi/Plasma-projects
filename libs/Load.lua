@@ -1,4 +1,4 @@
-VERSION = "Meta Lua 1.0.5"
+VERSION = "Meta Lua 1.0.6a"
 --Authors:
 --  TheIncgi
 -- Source: https://github.com/TheIncgi/Plasma-projects/blob/main/libs/Load.lua
@@ -20,7 +20,7 @@ Loader.tableIndexes[ Loader.metatables.string.value ] = {}
 
 --[table][raw key] -> wrapped key
 setmetatable(Loader.tableIndexes, {
-  __mode = "k"
+  -- __mode = "k"
 })
 
 --["string"] -> {wrapped string}
