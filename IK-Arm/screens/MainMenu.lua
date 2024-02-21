@@ -1,4 +1,4 @@
-print("Creating Main Menu (build 24)")
+print("Creating Main Menu (build 25)")
 
 local Screen = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen"
 local Button = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Button"
@@ -47,7 +47,9 @@ function MainMenu:new( UI, ... )
     text = "Gen Data",
     id = 3,
     fontSize = 30,
-    onClick = function() print"Clicked Data Button" end,
+    onClick = function()
+      UI.setScreen("dataCollectionMenu")
+    end,
   })
   y = y + (elemHeight + paddingSize) * Screen.BOTTOM_DIR
 

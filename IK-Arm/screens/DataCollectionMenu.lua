@@ -1,4 +1,4 @@
-print("Creating Data Collection Menu (build 1)")
+print("Creating Data Collection Menu (build 2)")
 
 local Screen = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen"
 local Button = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Button"
@@ -29,3 +29,5 @@ function DCM:new( UI, ... )
 
   return obj
 end
+
+return DCM
