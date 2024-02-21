@@ -1,4 +1,4 @@
-print("Creating Data Collection Menu (build 3)")
+print("Creating Data Collection Menu (build 4)")
 
 local Screen = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen"
 local Button = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Button"
@@ -27,6 +27,8 @@ function DCM:new( UI, ... )
     end,
     uuid = 1
   })
+
+  table.insert(obj.elements, back)
 
   return obj
 end
