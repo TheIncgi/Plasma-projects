@@ -1,4 +1,4 @@
-print("Creating Data Collection Menu (build 5)")
+print("Creating Data Collection Menu (build 6)")
 
 local Screen = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Screen"
 local Button = require"TheIncgi/Plasma-projects/IK-Arm/IK-Arm/screens/Button"
@@ -18,8 +18,8 @@ function DCM:new( UI, ... )
   local back = Button:new({
     x = Screen.LEFT + (Screen.RIGHT_DIR * margins),
     y = Screen.TOP + (Screen.BOTTOM_DIR * margins),
-    x2 = Screen.LEFT + (Screen.RIGHT_DIR * margins + buttonHeight),
-    y2 = Screen.TOP + (Screen.BOTTOM_DIR * margins + buttonHeight),
+    x2 = Screen.LEFT + (Screen.RIGHT_DIR * (margins + buttonHeight)),
+    y2 = Screen.TOP + (Screen.BOTTOM_DIR * (margins + buttonHeight)),
     text = "<",
     backgroundColor = {r=1, g=0, b=0},
     onClick=function()
